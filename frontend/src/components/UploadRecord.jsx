@@ -66,7 +66,7 @@ export default function UploadRecord({ onSuccess }) {
       });
       onSuccess(result);
     } catch (err) {
-      const message = err?.response?.data?.message || 'Upload failed. Please try again.';
+      const message = err?.message || 'Upload failed. Please try again.';
       setError(message);
     } finally {
       setLoading(false);

@@ -52,7 +52,7 @@ export default function GrantAccessModal({ record, onSuccess }) {
       });
       onSuccess();
     } catch (err) {
-      const message = err?.response?.data?.message || 'Failed to grant access. Please try again.';
+      const message = err?.message || 'Failed to grant access. Please try again.';
       setError(message);
     } finally {
       setLoading(false);

@@ -42,7 +42,7 @@ export default function RevokeAccessModal({ record, doctor, onSuccess }) {
       });
       onSuccess(doctor.walletAddress);
     } catch (err) {
-      const message = err?.response?.data?.message || 'Failed to revoke access. Please try again.';
+      const message = err?.message || 'Failed to revoke access. Please try again.';
       setError(message);
     } finally {
       setLoading(false);

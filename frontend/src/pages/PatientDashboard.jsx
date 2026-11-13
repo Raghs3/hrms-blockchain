@@ -63,10 +63,7 @@ export default function PatientDashboard() {
       const data = await getMyRecords();
       setRecords(data);
     } catch (err) {
-      setError(
-        err?.response?.data?.message ||
-          'Failed to load records. Please try again.'
-      );
+      setError(err?.message || 'Failed to load records. Please try again.');
     } finally {
       setLoading(false);
     }

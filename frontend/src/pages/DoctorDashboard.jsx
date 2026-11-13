@@ -93,7 +93,7 @@ export default function DoctorDashboard() {
       setAccessResult(result);
     } catch (err) {
       setCheckError(
-        err?.response?.data?.message ||
+        err?.message ||
           'Failed to check access. Please verify the Record ID and try again.'
       );
     } finally {
@@ -111,16 +111,14 @@ export default function DoctorDashboard() {
       setRecordData(data);
     } catch (err) {
       const isAccessDenied =
-        err?.response?.status === 403 ||
-        err?.response?.data?.error === 'ACCESS_DENIED';
+        err?.status === 403 ||
+        err?.code === 'ACCESS_DENIED';
       if (isAccessDenied) {
         // Access was revoked between check and view
         setAccessResult({ authorized: false });
-        setViewError('Access was revoked. You no longer have permission to view this record.');
+        setViewError(err?.message || 'Access was revoked. You no longer have permission to view this record.');
       } else {
-        setViewError(
-          err?.response?.data?.message || 'Failed to load record. Please try again.'
-        );
+        setViewError(err?.message || 'Failed to load record. Please try again.');
       }
     } finally {
       setViewLoading(false);
@@ -160,8 +158,8 @@ export default function DoctorDashboard() {
               </svg>
             </div>
           </div>
-          <div className="summary-card-value">1</div>
-          <div className="summary-card-sub">Granted for this session</div>
+          <div className="summary-card-value" style={{ fontSize: '1.25rem', color: 'var(--color-text-secondary)' }}>On-Demand</div>
+          <div className="summary-card-sub">Verified via smart contract</div>
         </div>
 
         <div className="summary-card">
@@ -436,10 +434,10 @@ export default function DoctorDashboard() {
             margin: 0,
           }}
         >
-          <li>Enter <strong style={{ fontFamily: 'Courier New, monospace' }}>rec_101</strong> to check access to the Blood Test Report.</li>
+          <li>Enter the numeric Record ID (e.g. <strong style={{ fontFamily: 'Courier New, monospace' }}>1</strong>) shared by the patient.</li>
           <li>If the patient has granted access, you will see <strong>Access Granted</strong>.</li>
-          <li>Click <strong>View Record</strong> to read the record content.</li>
-          <li>After the patient revokes access, the same ID will show <strong>Access Denied</strong>.</li>
+          <li>Click <strong>View Record</strong> to decrypt and read the record content.</li>
+          <li>After the patient revokes access, the same Record ID will show <strong>Access Denied</strong>.</li>
         </ul>
       </div>
     </Layout>

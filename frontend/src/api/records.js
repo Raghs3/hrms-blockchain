@@ -8,7 +8,8 @@ import {
   mockViewRecord,
 } from './mock';
 
-const USE_MOCK = import.meta.env.VITE_USE_MOCK !== 'false';
+// VITE_USE_MOCK=false by default; mock mode only runs when explicitly set to 'true'
+const USE_MOCK = import.meta.env.VITE_USE_MOCK === 'true';
 
 /**
  * GET /records/mine

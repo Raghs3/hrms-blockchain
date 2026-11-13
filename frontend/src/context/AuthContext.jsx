@@ -29,12 +29,15 @@ export function AuthProvider({ children }) {
   }, [authState?.token]);
 
   function loginUser(userData) {
+    const user = userData.user || userData;
     const state = {
       token: userData.token,
-      role: userData.role,
-      walletAddress: userData.walletAddress,
-      userId: userData.userId,
-      name: userData.name,
+      role: user.role,
+      walletAddress: user.walletAddress,
+      userId: user.userId || user.id,
+      name: user.name,
+      email: user.email,
+      status: user.status,
     };
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
     localStorage.setItem('hrms_token', userData.token);

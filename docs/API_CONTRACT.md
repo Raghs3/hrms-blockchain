@@ -1,7 +1,8 @@
 # API Contract — Healthcare Records Backend
 
 > Source: `backend/src/routes.js`, `backend/src/auth.js`  
-> All errors have shape `{ error: "<CODE>" }`. Auth = Bearer JWT.
+> All errors have shape `{ error: "<CODE>" }`. Auth = Bearer JWT.  
+> Rate-limited endpoints return 429 `{ error: "TOO_MANY_REQUESTS" }` on breach.
 
 ---
 
@@ -124,6 +125,7 @@
 | Not record owner | 403 | `{ error: "NOT_RECORD_OWNER" }` |
 | Record not found | 404 | `{ error: "RECORD_NOT_FOUND" }` |
 | Invalid address | 400 | `{ error: "INVALID_ADDRESS" }` |
+| Not registered doctor | 400 | `{ error: "NOT_A_DOCTOR" }` |
 
 ---
 
@@ -137,6 +139,7 @@
 | Success | 200 | `{ txHash, status: "revoked" }` |
 | Not record owner | 403 | `{ error: "NOT_RECORD_OWNER" }` |
 | Record not found | 404 | `{ error: "RECORD_NOT_FOUND" }` |
+| Invalid address | 400 | `{ error: "INVALID_ADDRESS" }` |
 
 ---
 

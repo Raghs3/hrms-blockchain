@@ -36,11 +36,7 @@ export default function Login() {
       loginUser({ ...userData, name: userData.name || name.trim() });
       navigate(userData.role === 'doctor' ? '/doctor' : '/patient', { replace: true });
     } catch (err) {
-      const message =
-        err?.response?.data?.message ||
-        err?.message ||
-        'Login failed. Please check your details and try again.';
-      setError(message);
+      setError(err?.message || 'Login failed. Please check your details and try again.');
     } finally {
       setLoading(false);
     }
@@ -98,7 +94,7 @@ export default function Login() {
           </p>
 
           <div className="demo-note" role="note">
-            <strong>Demo Mode:</strong> Select a role or use one of the one-click demo profiles below to enter the portal.
+            Enter your full name and select your role to access the portal.
           </div>
 
           {error && (
@@ -159,57 +155,6 @@ export default function Login() {
               )}
             </button>
           </form>
-
-          {/* Quick fill buttons for demo convenience */}
-          <div style={{ marginTop: '32px', borderTop: '1px solid var(--color-border-light)', paddingTop: '24px' }}>
-            <p style={{ fontSize: '0.75rem', fontWeight: 'var(--font-weight-bold)', color: 'var(--color-text-muted)', marginBottom: '14px', textAlign: 'center', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
-              DEMO PROFILES
-            </p>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
-              <button
-                type="button"
-                className="btn btn-secondary"
-                style={{
-                  padding: '12px 14px',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  alignItems: 'flex-start',
-                  textAlign: 'left',
-                  gap: '4px',
-                  borderRadius: 'var(--radius-md)',
-                  border: role === 'patient' && name === 'Riya Sharma' ? '2px solid var(--color-accent)' : '1px solid var(--color-border)',
-                  backgroundColor: role === 'patient' && name === 'Riya Sharma' ? 'var(--color-accent-light)' : '#ffffff',
-                }}
-                onClick={() => { setName('Riya Sharma'); setRole('patient'); }}
-                disabled={loading}
-                id="demo-patient-btn"
-              >
-                <span style={{ fontWeight: 'var(--font-weight-bold)', color: 'var(--color-text-primary)', fontSize: '0.9375rem' }}>Riya Sharma</span>
-                <span style={{ color: 'var(--color-accent)', fontSize: '0.8125rem', fontWeight: 'var(--font-weight-semibold)' }}>Patient</span>
-              </button>
-              <button
-                type="button"
-                className="btn btn-secondary"
-                style={{
-                  padding: '12px 14px',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  alignItems: 'flex-start',
-                  textAlign: 'left',
-                  gap: '4px',
-                  borderRadius: 'var(--radius-md)',
-                  border: role === 'doctor' && name === 'Dr. Kapoor' ? '2px solid var(--color-success)' : '1px solid var(--color-border)',
-                  backgroundColor: role === 'doctor' && name === 'Dr. Kapoor' ? 'var(--color-success-bg)' : '#ffffff',
-                }}
-                onClick={() => { setName('Dr. Kapoor'); setRole('doctor'); }}
-                disabled={loading}
-                id="demo-doctor-btn"
-              >
-                <span style={{ fontWeight: 'var(--font-weight-bold)', color: 'var(--color-text-primary)', fontSize: '0.9375rem' }}>Dr. Kapoor</span>
-                <span style={{ color: 'var(--color-success)', fontSize: '0.8125rem', fontWeight: 'var(--font-weight-semibold)' }}>Doctor</span>
-              </button>
-            </div>
-          </div>
         </div>
       </div>
     </div>
