@@ -1,4 +1,5 @@
 const path = require("path");
+const crypto = require("crypto");
 const { ethers } = require("ethers");
 const cfg = require("./config");
 
@@ -22,9 +23,21 @@ function runAsAdmin(task) {
   return result;
 }
 
-// Demo simplification: the backend holds each user's wallet. The key is derived
-// deterministically from name + role, so the same login always maps to the same address.
+// Real-auth: derive wallet from WALLET_SECRET + accountId using HMAC-SHA256.
+// No private keys stored; same accountId always yields the same wallet.
+function walletForAccount(accountId) {
+  const hmac = crypto.createHmac("sha256", cfg.walletSecret);
+  hmac.update(String(accountId));
+  const keyHex = "0x" + hmac.digest("hex");
+  return new ethers.Wallet(keyHex, provider);
+}
+
+// Demo simplification (DEMO_AUTH=true only): the backend holds each user's wallet.
+// The key is derived deterministically from name + role.
 function walletFor(name, role) {
+  if (!cfg.demoAuth) {
+    throw new Error("walletFor() called but DEMO_AUTH is not enabled");
+  }
   const seed = `${cfg.jwtSecret}|${role}|${name.trim().toLowerCase()}`;
   return new ethers.Wallet(ethers.keccak256(ethers.toUtf8Bytes(seed)), provider);
 }
@@ -60,4 +73,4 @@ async function register(wallet, role) {
   }
 }
 
-module.exports = { provider, userRegistry, recordRegistry, walletFor, ensureRegistered };
+module.exports = { provider, userRegistry, recordRegistry, walletFor, walletForAccount, ensureRegistered };

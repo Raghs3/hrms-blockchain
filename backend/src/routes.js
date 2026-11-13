@@ -2,7 +2,7 @@ const express = require("express");
 const multer = require("multer");
 const { ethers } = require("ethers");
 const { recordRegistry } = require("./chain");
-const { login, requireAuth } = require("./auth");
+const { register, login, demoLogin, me, doctors, requireAuth, authLimiter } = require("./auth");
 const { encrypt, decrypt, sha256Hex } = require("./crypto");
 const ipfs = require("./ipfs");
 const store = require("./store");
@@ -53,7 +53,12 @@ async function authorizedDoctors(recordId) {
   return current;
 }
 
-router.post("/auth/login", wrap(login));
+router.post("/auth/register", authLimiter, wrap(register));
+router.post("/auth/login", authLimiter, wrap(login));
+router.post("/auth/demo-login", authLimiter, wrap(demoLogin));
+router.get("/auth/me", requireAuth(), (req, res) => me(req, res));
+router.get("/doctors", requireAuth("patient", "doctor"), doctors);
+router.get("/doctor/dashboard", requireAuth("doctor"), (req, res) => res.json({ ok: true }));
 
 router.post("/records/upload", requireAuth("patient"), upload.single("file"), wrap(async (req, res) => {
   if (!req.file) return res.status(400).json({ error: "FILE_REQUIRED" });

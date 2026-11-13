@@ -1,0 +1,70 @@
+# Backend — Healthcare Records API
+
+## Quick Start
+
+```bash
+# 1. Copy and fill env
+cp .env.example .env   # then edit .env
+
+# 2. Install deps
+npm install
+
+# 3. Start Hardhat node (in contracts/)
+cd ../contracts && npx hardhat node
+
+# 4. Deploy contracts (in another terminal, in contracts/)
+npx hardhat run scripts/deploy.js --network localhost
+
+# 5. Run backend
+cd ../backend && npm start
+
+# 6. Seed demo accounts
+npm run seed
+```
+
+## Demo Credentials (created by `npm run seed`)
+
+| Role    | Email                 | Password      |
+|---------|-----------------------|---------------|
+| Admin   | admin@demo.local      | Admin1234!    |
+| Doctor  | doctor@demo.local     | Doctor1234!   |
+| Patient | patient@demo.local    | Patient1234!  |
+
+> The seed doctor is automatically approved and registered on-chain.
+
+## Doctor Approval
+
+```bash
+npm run approve-doctor -- doctor@example.com
+```
+
+This sets the doctor's status to `approved` and registers them on-chain.
+
+## Environment Variables
+
+| Variable                | Required | Default                    | Description                              |
+|-------------------------|----------|----------------------------|------------------------------------------|
+| `PORT`                  | No       | 4000                       | HTTP port                                |
+| `RPC_URL`               | No       | http://127.0.0.1:8545      | Ethereum JSON-RPC endpoint               |
+| `USER_REGISTRY_ADDRESS` | **Yes**  | —                          | Deployed UserRegistry contract address   |
+| `RECORD_REGISTRY_ADDRESS`| **Yes** | —                          | Deployed RecordRegistry contract address |
+| `ADMIN_PRIVATE_KEY`     | **Yes**  | —                          | Hardhat deployer account private key     |
+| `JWT_SECRET`            | **Yes**  | —                          | Signs JWT tokens                         |
+| `WALLET_SECRET`         | **Yes**  | —                          | Derives deterministic wallets from IDs   |
+| `ENCRYPTION_KEY`        | **Yes**  | —                          | 32 bytes hex — encrypts uploaded files   |
+| `DEMO_AUTH`             | No       | false                      | Enable legacy name+role demo login       |
+| `CORS_ORIGIN`           | No       | http://localhost:5173       | Allowed CORS origin                      |
+| `PINATA_JWT`            | No       | *(local stub)*             | Pinata JWT for IPFS storage              |
+| `PINATA_GATEWAY`        | No       | https://gateway.pinata.cloud | Pinata gateway URL                     |
+
+## Auth Flow
+
+```
+POST /auth/register   { name, email, password, role }
+POST /auth/login      { email, password }  → { token, user }
+GET  /auth/me         Bearer <token>       → { user }
+GET  /doctors         Bearer <token>       → { doctors: [...] }
+```
+
+See `../docs/AUTH_CONTRACT.md` and `../docs/API_CONTRACT.md` for full contract.
+

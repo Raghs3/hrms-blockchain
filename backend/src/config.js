@@ -19,8 +19,13 @@ module.exports = {
   recordRegistryAddress: required("RECORD_REGISTRY_ADDRESS"),
   adminPrivateKey: required("ADMIN_PRIVATE_KEY"),
   jwtSecret: required("JWT_SECRET"),
+  // Secret used to derive deterministic wallets from account IDs (real auth).
+  walletSecret: required("WALLET_SECRET"),
   encryptionKey,
   pinataJwt: process.env.PINATA_JWT || "",
   pinataGateway: (process.env.PINATA_GATEWAY || "https://gateway.pinata.cloud").replace(/\/$/, ""),
   artifactsDir: process.env.ARTIFACTS_DIR || path.join(__dirname, "..", "..", "contracts", "artifacts"),
+  // Set DEMO_AUTH=true to enable the old name+role /auth/demo-login endpoint.
+  demoAuth: process.env.DEMO_AUTH === "true",
+  corsOrigin: process.env.CORS_ORIGIN || "http://localhost:5173",
 };
