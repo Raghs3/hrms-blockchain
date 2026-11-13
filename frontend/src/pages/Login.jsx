@@ -1,50 +1,150 @@
 import { useState } from 'react';
-import { useNavigate, Navigate } from 'react-router-dom';
+import { useNavigate, Navigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { login } from '../api/auth';
+import { login, register } from '../api/auth';
+import LoadingState from '../components/LoadingState';
+
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 /**
- * Login page - Professional healthcare login.
- * No password field (demo mode). Uses name + role.
+ * Login & Register Page.
+ * - Tabs for Sign In and Create Account
+ * - Client-side validation with authoritative backend response handling
+ * - Distinct handling for DOCTOR_PENDING, DOCTOR_REJECTED, INVALID_CREDENTIALS, EMAIL_EXISTS, VALIDATION_ERROR
+ * - Dedicated Pending Approval view for newly registered doctors
  */
 export default function Login() {
-  const { isAuthenticated, role: existingRole, loginUser } = useAuth();
+  const { isLoading, isAuthenticated, role: currentRole, loginUser } = useAuth();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const isExpired = searchParams.get('expired') === '1';
 
-  const [name, setName] = useState('');
-  const [role, setRole] = useState('patient');
-  const [loading, setLoading] = useState(false);
+  // Mode: 'login' | 'register'
+  const [tab, setTab] = useState('login');
+
+  // Login form state
+  const [loginEmail, setLoginEmail] = useState('');
+  const [loginPassword, setLoginPassword] = useState('');
+
+  // Register form state
+  const [regName, setRegName] = useState('');
+  const [regEmail, setRegEmail] = useState('');
+  const [regPassword, setRegPassword] = useState('');
+  const [regConfirmPassword, setRegConfirmPassword] = useState('');
+  const [regRole, setRegRole] = useState('patient');
+
+  // Status & error states
+  const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
+  const [doctorPendingData, setDoctorPendingData] = useState(null);
 
-  // Already logged in → redirect to dashboard
-  if (isAuthenticated) {
-    return <Navigate to={existingRole === 'doctor' ? '/doctor' : '/patient'} replace />;
+  // If session verification is in progress
+  if (isLoading) {
+    return (
+      <div className="login-page">
+        <div className="login-right-panel" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <LoadingState message="Verifying session..." />
+        </div>
+      </div>
+    );
   }
 
-  async function handleSubmit(e) {
+  // Already authenticated → redirect to appropriate dashboard
+  if (isAuthenticated) {
+    return <Navigate to={currentRole === 'doctor' ? '/doctor' : '/patient'} replace />;
+  }
+
+  // Handle Login submission
+  async function handleLogin(e) {
     e.preventDefault();
     setError('');
 
-    if (!name.trim()) {
-      setError('Please enter your name.');
+    const email = loginEmail.trim();
+    const password = loginPassword;
+
+    if (!email) {
+      setError('Please enter your email address.');
+      return;
+    }
+    if (!EMAIL_REGEX.test(email)) {
+      setError('Please enter a valid email address.');
+      return;
+    }
+    if (!password) {
+      setError('Please enter your password.');
       return;
     }
 
-    setLoading(true);
+    setSubmitting(true);
     try {
-      const userData = await login(name.trim(), role);
-      loginUser({ ...userData, name: userData.name || name.trim() });
-      navigate(userData.role === 'doctor' ? '/doctor' : '/patient', { replace: true });
+      const res = await login({ email, password });
+      loginUser(res);
+      navigate(res.user?.role === 'doctor' ? '/doctor' : '/patient', { replace: true });
     } catch (err) {
-      setError(err?.message || 'Login failed. Please check your details and try again.');
+      setError(err?.message || 'Login failed. Please check your credentials.');
     } finally {
-      setLoading(false);
+      setSubmitting(false);
+    }
+  }
+
+  // Handle Register submission
+  async function handleRegister(e) {
+    e.preventDefault();
+    setError('');
+
+    const name = regName.trim();
+    const email = regEmail.trim();
+    const password = regPassword;
+    const confirmPassword = regConfirmPassword;
+
+    if (!name) {
+      setError('Please enter your full name.');
+      return;
+    }
+    if (!email) {
+      setError('Please enter your email address.');
+      return;
+    }
+    if (!EMAIL_REGEX.test(email)) {
+      setError('Please enter a valid email address.');
+      return;
+    }
+    if (password.length < 8) {
+      setError('Password must be at least 8 characters long.');
+      return;
+    }
+    if (password !== confirmPassword) {
+      setError('Passwords do not match.');
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      const res = await register({
+        name,
+        email,
+        password,
+        role: regRole,
+      });
+
+      if (regRole === 'doctor') {
+        // Doctor registrations require admin approval; backend returns 201 { user } with status "pending"
+        setDoctorPendingData(res.user);
+      } else {
+        // Patients are approved immediately and receive a JWT token
+        loginUser(res);
+        navigate('/patient', { replace: true });
+      }
+    } catch (err) {
+      setError(err?.message || 'Registration failed. Please check your information.');
+    } finally {
+      setSubmitting(false);
     }
   }
 
   return (
     <div className="login-page">
-      {/* Left informational panel */}
+      {/* Left informational branding panel */}
       <div className="login-left-panel" aria-hidden="true">
         <div>
           <div className="login-brand-name">HealthChain</div>
@@ -62,19 +162,19 @@ export default function Login() {
           </p>
           <div className="login-features">
             <div className="login-feature-item">
-              <span className="login-feature-dot"></span>
+              <span className="login-feature-dot" />
               Patient-controlled access
             </div>
             <div className="login-feature-item">
-              <span className="login-feature-dot"></span>
+              <span className="login-feature-dot" />
               Secure healthcare records
             </div>
             <div className="login-feature-item">
-              <span className="login-feature-dot"></span>
+              <span className="login-feature-dot" />
               Blockchain-backed permissions
             </div>
             <div className="login-feature-item">
-              <span className="login-feature-dot"></span>
+              <span className="login-feature-dot" />
               Decentralized record storage
             </div>
           </div>
@@ -85,76 +185,238 @@ export default function Login() {
         </div>
       </div>
 
-      {/* Right login form */}
+      {/* Right panel: Sign In / Register / Doctor Pending */}
       <div className="login-right-panel">
         <div className="login-form-container">
-          <h1>Sign In</h1>
-          <p className="login-subtitle">
-            Access the HealthChain portal
-          </p>
-
-          <div className="demo-note" role="note">
-            Enter your full name and select your role to access the portal.
-          </div>
-
-          {error && (
-            <div className="error-state" role="alert" style={{ marginBottom: '20px' }}>
-              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-                <circle cx="8" cy="8" r="7" stroke="currentColor" strokeWidth="1.5"/>
-                <path d="M8 5v4M8 11v.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
-              </svg>
-              {error}
-            </div>
-          )}
-
-          <form onSubmit={handleSubmit} noValidate>
-            <div className="form-group">
-              <label className="form-label" htmlFor="login-name">Full Name</label>
-              <input
-                id="login-name"
-                type="text"
-                className="form-control"
-                placeholder="e.g. Riya Sharma"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                disabled={loading}
-                autoComplete="name"
-                autoFocus
-                required
-              />
-            </div>
-
-            <div className="form-group">
-              <label className="form-label" htmlFor="login-role">Role</label>
-              <select
-                id="login-role"
-                className="form-select"
-                value={role}
-                onChange={(e) => setRole(e.target.value)}
-                disabled={loading}
+          {doctorPendingData ? (
+            /* Doctor Pending Approval Screen */
+            <div className="doctor-pending-card" role="region" aria-label="Registration Pending">
+              <div className="doctor-pending-icon" aria-hidden="true">
+                <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+                  <circle cx="12" cy="12" r="10" />
+                  <polyline points="12 6 12 12 16 14" />
+                </svg>
+              </div>
+              <h2 className="doctor-pending-title">Registration Submitted</h2>
+              <div className="doctor-pending-badge">Pending Administrator Approval</div>
+              <p className="doctor-pending-desc">
+                Your doctor account application for <strong>{doctorPendingData.email}</strong> has
+                been recorded. In accordance with hospital protocol, doctor accounts require
+                verification and approval by an administrator before access is granted.
+              </p>
+              <div className="doctor-pending-info">
+                Once approved by the administrator, you will be able to sign in using your email and password to access shared patient records.
+              </div>
+              <button
+                type="button"
+                className="btn btn-primary btn-block btn-lg"
+                onClick={() => {
+                  setDoctorPendingData(null);
+                  setTab('login');
+                  setError('');
+                }}
               >
-                <option value="patient">Patient</option>
-                <option value="doctor">Doctor</option>
-              </select>
+                Back to Sign In
+              </button>
             </div>
+          ) : (
+            <>
+              <div className="auth-tab-group" role="tablist" aria-label="Authentication Options">
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={tab === 'login'}
+                  className={`auth-tab-btn${tab === 'login' ? ' active' : ''}`}
+                  onClick={() => {
+                    setTab('login');
+                    setError('');
+                  }}
+                >
+                  Sign In
+                </button>
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={tab === 'register'}
+                  className={`auth-tab-btn${tab === 'register' ? ' active' : ''}`}
+                  onClick={() => {
+                    setTab('register');
+                    setError('');
+                  }}
+                >
+                  Create Account
+                </button>
+              </div>
 
-            <button
-              type="submit"
-              className="btn btn-primary btn-block btn-lg"
-              disabled={loading}
-              id="login-submit-btn"
-              style={{ marginTop: '8px' }}
-            >
-              {loading ? (
-                <>
-                  <span className="spinner spinner-sm" aria-hidden="true" />
-                  Signing in...
-                </>
-              ) : (
-                'Sign In'
+              {isExpired && !error && (
+                <div className="warning-state" role="alert" style={{ marginBottom: '20px' }}>
+                  <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                    <circle cx="8" cy="8" r="7" stroke="currentColor" strokeWidth="1.5" />
+                    <path d="M8 5v4M8 11v.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                  </svg>
+                  Your session has expired. Please sign in again.
+                </div>
               )}
-            </button>
-          </form>
+
+              {error && (
+                <div className="error-state" role="alert" style={{ marginBottom: '20px' }}>
+                  <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                    <circle cx="8" cy="8" r="7" stroke="currentColor" strokeWidth="1.5" />
+                    <path d="M8 5v4M8 11v.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                  </svg>
+                  {error}
+                </div>
+              )}
+
+              {tab === 'login' ? (
+                /* Sign In Form */
+                <form onSubmit={handleLogin} noValidate>
+                  <div className="form-group">
+                    <label className="form-label" htmlFor="login-email">Email Address</label>
+                    <input
+                      id="login-email"
+                      type="email"
+                      className="form-control"
+                      placeholder="name@example.com"
+                      value={loginEmail}
+                      onChange={(e) => setLoginEmail(e.target.value)}
+                      disabled={submitting}
+                      autoComplete="email"
+                      autoFocus
+                      required
+                    />
+                  </div>
+
+                  <div className="form-group">
+                    <label className="form-label" htmlFor="login-password">Password</label>
+                    <input
+                      id="login-password"
+                      type="password"
+                      className="form-control"
+                      placeholder="Enter your password"
+                      value={loginPassword}
+                      onChange={(e) => setLoginPassword(e.target.value)}
+                      disabled={submitting}
+                      autoComplete="current-password"
+                      required
+                    />
+                  </div>
+
+                  <button
+                    type="submit"
+                    className="btn btn-primary btn-block btn-lg"
+                    disabled={submitting}
+                    id="login-submit-btn"
+                    style={{ marginTop: '16px' }}
+                  >
+                    {submitting ? (
+                      <>
+                        <span className="spinner spinner-sm" aria-hidden="true" />
+                        Signing in...
+                      </>
+                    ) : (
+                      'Sign In'
+                    )}
+                  </button>
+                </form>
+              ) : (
+                /* Create Account Form */
+                <form onSubmit={handleRegister} noValidate>
+                  <div className="form-group">
+                    <label className="form-label" htmlFor="reg-name">Full Name</label>
+                    <input
+                      id="reg-name"
+                      type="text"
+                      className="form-control"
+                      placeholder="Your Full Name"
+                      value={regName}
+                      onChange={(e) => setRegName(e.target.value)}
+                      disabled={submitting}
+                      autoComplete="name"
+                      autoFocus
+                      required
+                    />
+                  </div>
+
+                  <div className="form-group">
+                    <label className="form-label" htmlFor="reg-email">Email Address</label>
+                    <input
+                      id="reg-email"
+                      type="email"
+                      className="form-control"
+                      placeholder="name@example.com"
+                      value={regEmail}
+                      onChange={(e) => setRegEmail(e.target.value)}
+                      disabled={submitting}
+                      autoComplete="email"
+                      required
+                    />
+                  </div>
+
+                  <div className="form-group">
+                    <label className="form-label" htmlFor="reg-role">Account Role</label>
+                    <select
+                      id="reg-role"
+                      className="form-select"
+                      value={regRole}
+                      onChange={(e) => setRegRole(e.target.value)}
+                      disabled={submitting}
+                    >
+                      <option value="patient">Patient (Instant access)</option>
+                      <option value="doctor">Doctor (Requires administrator approval)</option>
+                    </select>
+                  </div>
+
+                  <div className="form-group">
+                    <label className="form-label" htmlFor="reg-password">Password</label>
+                    <input
+                      id="reg-password"
+                      type="password"
+                      className="form-control"
+                      placeholder="Minimum 8 characters"
+                      value={regPassword}
+                      onChange={(e) => setRegPassword(e.target.value)}
+                      disabled={submitting}
+                      autoComplete="new-password"
+                      required
+                    />
+                  </div>
+
+                  <div className="form-group">
+                    <label className="form-label" htmlFor="reg-confirm-password">Confirm Password</label>
+                    <input
+                      id="reg-confirm-password"
+                      type="password"
+                      className="form-control"
+                      placeholder="Re-enter password"
+                      value={regConfirmPassword}
+                      onChange={(e) => setRegConfirmPassword(e.target.value)}
+                      disabled={submitting}
+                      autoComplete="new-password"
+                      required
+                    />
+                  </div>
+
+                  <button
+                    type="submit"
+                    className="btn btn-primary btn-block btn-lg"
+                    disabled={submitting}
+                    id="register-submit-btn"
+                    style={{ marginTop: '16px' }}
+                  >
+                    {submitting ? (
+                      <>
+                        <span className="spinner spinner-sm" aria-hidden="true" />
+                        Creating Account...
+                      </>
+                    ) : (
+                      'Create Account'
+                    )}
+                  </button>
+                </form>
+              )}
+            </>
+          )}
         </div>
       </div>
     </div>

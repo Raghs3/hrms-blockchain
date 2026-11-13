@@ -6,25 +6,36 @@ import { useNavigate } from 'react-router-dom';
  * Sidebar - Navigation sidebar for dashboards.
  *
  * Props:
- *   navItems: Array<{ label, icon, active }>
+ *   navItems: Array<{ label, icon, active, onClick }>
  *   mobileOpen: boolean
  *   onMobileClose: function
  */
 export default function Sidebar({ navItems = [], mobileOpen, onMobileClose }) {
   const { name, role, walletAddress, logoutUser } = useAuth();
   const navigate = useNavigate();
+  const [copied, setCopied] = useState(false);
 
   function handleLogout() {
     logoutUser();
     navigate('/login', { replace: true });
   }
 
+  function handleCopyWallet() {
+    if (!walletAddress) return;
+    navigator.clipboard?.writeText(walletAddress);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  }
+
   // Truncate wallet address for display
   function truncateWallet(address) {
     if (!address) return '';
     if (address.length <= 14) return address;
-    return `${address.slice(0, 8)}...${address.slice(-6)}`;
+    return `${address.slice(0, 6)}...${address.slice(-4)}`;
   }
+
+  const roleLabel =
+    role === 'doctor' ? 'Doctor' : role === 'admin' ? 'Administrator' : 'Patient';
 
   return (
     <>
@@ -51,11 +62,31 @@ export default function Sidebar({ navItems = [], mobileOpen, onMobileClose }) {
 
         {/* Profile */}
         <div className="sidebar-profile">
-          <div className="profile-role">{role === 'patient' ? 'Patient' : 'Doctor'}</div>
+          <div className="profile-role">{roleLabel}</div>
           <div className="profile-name">{name || '—'}</div>
-          <div className="profile-wallet" title={walletAddress}>
-            {truncateWallet(walletAddress)}
-          </div>
+          {walletAddress && (
+            <div className="profile-wallet-wrapper">
+              <span className="profile-wallet" title={walletAddress}>
+                {truncateWallet(walletAddress)}
+              </span>
+              <button
+                type="button"
+                className="wallet-copy-btn"
+                onClick={handleCopyWallet}
+                title="Copy full wallet address"
+                aria-label="Copy full wallet address"
+              >
+                {copied ? (
+                  <span className="wallet-copied-text">Copied!</span>
+                ) : (
+                  <svg width="12" height="12" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                    <rect x="5" y="5" width="9" height="9" rx="1.5" stroke="currentColor" strokeWidth="1.5" />
+                    <path d="M11 5V3a1.5 1.5 0 00-1.5-1.5h-6A1.5 1.5 0 002 3v6A1.5 1.5 0 003.5 10.5H5" stroke="currentColor" strokeWidth="1.5" />
+                  </svg>
+                )}
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Navigation */}
@@ -63,6 +94,7 @@ export default function Sidebar({ navItems = [], mobileOpen, onMobileClose }) {
           {navItems.map((item) => (
             <button
               key={item.label}
+              type="button"
               className={`sidebar-nav-item${item.active ? ' active' : ''}`}
               aria-current={item.active ? 'page' : undefined}
               onClick={item.onClick}
@@ -76,6 +108,7 @@ export default function Sidebar({ navItems = [], mobileOpen, onMobileClose }) {
         {/* Footer */}
         <div className="sidebar-footer">
           <button
+            type="button"
             className="sidebar-nav-item"
             onClick={handleLogout}
             aria-label="Sign out"
@@ -90,3 +123,4 @@ export default function Sidebar({ navItems = [], mobileOpen, onMobileClose }) {
     </>
   );
 }
+

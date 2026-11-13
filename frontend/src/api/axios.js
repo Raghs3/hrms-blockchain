@@ -32,13 +32,17 @@ api.interceptors.response.use(
   (response) => response,
   (error) => {
     const status = error.response ? error.response.status : null;
-    const isLoginPage = window.location.pathname === '/login';
+    const requestUrl = error.config?.url || '';
+    const isAuthEndpoint =
+      requestUrl.includes('/auth/login') || requestUrl.includes('/auth/register');
 
-    if (status === 401 && !isLoginPage) {
-      // Clear auth state on unauthorized from protected pages
+    if (status === 401 && !isAuthEndpoint) {
+      // Clear auth state on unauthorized from protected requests
       localStorage.removeItem('hrms_token');
       localStorage.removeItem('hrms_auth');
-      window.location.href = '/login';
+      if (window.location.pathname !== '/login') {
+        window.location.href = '/login?expired=1';
+      }
     }
 
     return Promise.reject(normalizeError(error));

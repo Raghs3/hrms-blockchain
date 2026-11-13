@@ -1,54 +1,81 @@
 # Frontend State & Status Report
 
-## Done
+## Done (Phase B1 & B2)
 
-1. **API Contract Audit:**
-   - Audited `docs/API_CONTRACT.md` against `backend/src/routes.js` and `backend/src/auth.js`.
-   - Added missing error specifications for `NOT_A_DOCTOR` on `POST /records/:id/grant`, `INVALID_ADDRESS` on `POST /records/:id/revoke`, and documented `TOO_MANY_REQUESTS` on rate-limited endpoints.
+1. **Real Authentication UI (Phase B2 - `frontend/auth-ui`):**
+   - Replaced demo login with a dual-tab "Sign In" and "Create Account" interface in `frontend/src/pages/Login.jsx`.
+   - Client-side validation: email regex verification, password minimum length (8 characters), and password confirmation matching.
+   - Distinct server error code handling:
+     - Login: `INVALID_CREDENTIALS`, `DOCTOR_PENDING`, `DOCTOR_REJECTED`.
+     - Register: `EMAIL_EXISTS`, `VALIDATION_ERROR`.
+   - Dedicated "Pending Administrator Approval" screen displayed immediately upon doctor registration (no token returned; status "pending").
+   - Session expiration warning banner displayed when navigated with `?expired=1`.
+   - Removed all demo remnants, pickers, and hardcoded placeholders.
 
-2. **Unified API Client Module (`src/api/axios.js`):**
-   - Configured Axios instance with `baseURL` derived from `import.meta.env.VITE_API_BASE_URL || 'http://localhost:4000'`.
-   - Request interceptor automatically attaches `Authorization: Bearer <token>` from `localStorage.getItem('hrms_token')`.
-   - Response interceptor implements centralized 401 handling (clears session and redirects to `/login` when unauthorized).
-   - Response interceptor automatically normalizes all error rejections into `{ code, message, status }` using the shared error helper.
+2. **3-State AuthContext Lifecycle:**
+   - AuthContext operates in three distinct states: `'loading'`, `'authenticated'`, `'unauthenticated'`.
+   - On app startup, restores `hrms_token` from `localStorage` and verifies it via `GET /auth/me`.
+   - If valid, populates `{ user, role, walletAddress, name, email, userId }`.
+   - If invalid, expired, or 401, clears storage and transitions cleanly to `unauthenticated`.
+   - User role is strictly derived from the verified server response (never selected or toggled by client state).
+   - `loginUser` saves `hrms_token` and updates state; `logoutUser` wipes token and state completely.
 
-3. **Shared Error Mapping Helper (`src/api/errors.js`):**
-   - Implemented mapping for all 20 backend error codes:
-     - Auth: `INVALID_CREDENTIALS`, `DOCTOR_PENDING`, `DOCTOR_REJECTED`, `EMAIL_EXISTS`, `VALIDATION_ERROR`, `INVALID_TOKEN`, `TOKEN_EXPIRED`, `UNAUTHENTICATED`, `WRONG_ROLE`, `TOO_MANY_REQUESTS`, `INVALID_LOGIN`.
-     - Record & Consent: `FILE_REQUIRED`, `NOT_A_PATIENT`, `NOT_A_DOCTOR`, `NOT_RECORD_OWNER`, `RECORD_NOT_FOUND`, `ACCESS_DENIED`, `INVALID_ADDRESS`, `INTEGRITY_CHECK_FAILED`, `UPLOAD_ERROR`, `INTERNAL_ERROR`.
-   - Provides `normalizeError(err)` and `getErrorMessage(code, fallback)`.
+3. **Route Protection & Admin Access Guard:**
+   - `ProtectedRoute` renders a spinner (`LoadingState`) while verifying the session on app mount.
+   - Redirects unauthenticated users to `/login`.
+   - Detects administrator role (`role === 'admin'`) and renders an honest notice explaining that admin accounts are managed via backend scripts (e.g., `npm run approve-doctor`), preventing redirect loops.
+   - Redirects patients away from doctor routes and doctors away from patient routes.
 
-4. **Real Backend Integration by Default (`VITE_USE_MOCK=false`):**
-   - Updated `src/api/auth.js` and `src/api/records.js` so mock mode only runs when `VITE_USE_MOCK === 'true'`.
-   - Created `frontend/.env.example` with `VITE_API_BASE_URL=http://localhost:4000` and `VITE_USE_MOCK=false`.
-   - Updated `frontend/.env` to `VITE_USE_MOCK=false`.
+4. **Sidebar & Layout Improvements:**
+   - Displays user's name, role label, and full copyable Ethereum wallet address.
+   - Includes a one-click copy button with transient "Copied!" visual feedback.
+   - Functional Sign Out button triggers `logoutUser()` and redirects to `/login`.
+   - Removed unused `useState` import.
 
-5. **Component Error Handling Standardization:**
-   - Refactored `GrantAccessModal.jsx`, `RevokeAccessModal.jsx`, `UploadRecord.jsx`, `PatientDashboard.jsx`, `DoctorDashboard.jsx`, and `Login.jsx` to consume `err.message` from normalized errors.
-
-6. **Numeric Record IDs:**
-   - Removed stale `rec_101` demo string from `DoctorDashboard.jsx`.
-   - Enforced numeric ID guidance throughout the doctor lookup and verification UI.
-
-7. **Live UI Mock Cleanup:**
-   - Removed hardcoded mock number `1` from Doctor Dashboard's "Accessible Records" card (updated to "On-Demand" lookup).
-   - Removed "DEMO PROFILES" quick-fill buttons and demo profile section from `Login.jsx`.
-
-8. **Auth Context Compatibility:**
-   - Updated `src/context/AuthContext.jsx` to unpack both `{ token, user: { ... } }` (real auth) and `{ token, role, ... }` (demo auth) payloads.
-
----
-
-## Known Issues & Deferred Items
-
-1. **Email/Password Login Screens Deferred:**
-   - As explicitly instructed, new login/registration screens were **not** built in this session. The existing form provides name + role input compatible with `POST /auth/demo-login` (when `DEMO_AUTH=true`) or programmatic credentials via `login({ email, password })`.
-2. **Doctor Address Manual Entry:**
-   - In `GrantAccessModal.jsx`, patients currently enter doctor wallet addresses manually. In Phase B, a dropdown backed by `GET /doctors` can be added.
+5. **API Client & 401 Interceptor Refinement:**
+   - `src/api/axios.js` checks request URL (`error.config?.url`) instead of `window.location.pathname`.
+   - 401 errors from `/auth/login` or `/auth/register` pass through to forms without clearing storage or reloading the page.
+   - Protected 401s clear `hrms_token` and redirect to `/login?expired=1`.
+   - `src/api/auth.js` streamlines `login({ email, password })`, `register()`, `getMe()`, and `getDoctors()`.
 
 ---
 
-## Backend Gaps
+## Manual Test Checklist
+
+- [ ] **Patient Registration & Auto-Login:**
+  1. Go to `/login` and click "Create Account".
+  2. Register with `name`, `email`, password (>= 8 chars), role "Patient".
+  3. Expect immediate redirect to `/patient` with wallet address displayed in sidebar.
+- [ ] **Doctor Registration & Pending State:**
+  1. Go to `/login` -> "Create Account".
+  2. Register with role "Doctor".
+  3. Expect "Registration Submitted - Pending Administrator Approval" screen.
+  4. Attempting to log in immediately with the doctor credentials displays "Your doctor registration is pending approval by the hospital administrator."
+- [ ] **Admin Approval & Doctor Login:**
+  1. Run `npm run approve-doctor -- <doctor-email>` in `backend/`.
+  2. Sign in as the approved doctor.
+  3. Expect redirect to `/doctor` with role "Doctor" in sidebar.
+- [ ] **Invalid Credentials:**
+  1. Attempt login with wrong password.
+  2. Expect error banner: "The email or password you entered is incorrect."
+- [ ] **Role Protection & Redirection:**
+  1. While logged in as a patient, navigate to `/doctor`.
+  2. Expect automatic redirect back to `/patient`.
+- [ ] **Admin Account Login:**
+  1. Sign in with the seeded admin account.
+  2. Expect clean Admin Access notice explaining CLI management with a working Sign Out button.
+- [ ] **Session Expiry / 401:**
+  1. Clear or invalidate `hrms_token` in DevTools localStorage while on a dashboard.
+  2. Trigger any backend request or refresh the page.
+  3. Expect redirect to `/login?expired=1` with "Your session has expired. Please sign in again." banner.
+- [ ] **Sign Out:**
+  1. Click "Sign Out" in the sidebar.
+  2. Expect immediate redirect to `/login` with `localStorage.getItem('hrms_token')` removed.
+
+---
+
+## Known Issues & Backend Gaps
 
 See [`docs/BACKEND_GAPS.md`](./BACKEND_GAPS.md) for detailed descriptions.
-- The backend does not have an endpoint (`GET /records/shared-with-me`) for doctors to query all records granted to them. The UI falls back to on-demand verification by numeric record ID.
+- `GET /records/shared-with-me` is not implemented in the backend; doctor lookup remains on-demand by numeric record ID.
+- In `GrantAccessModal.jsx`, patients currently enter doctor wallet addresses manually; can be enhanced with a dropdown populated by `GET /doctors`.

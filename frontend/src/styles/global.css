@@ -212,9 +212,40 @@ img {
 .sidebar-profile .profile-wallet {
   font-size: 0.9375rem;
   color: #94a3b8;
-  margin-top: 6px;
   font-family: 'Courier New', monospace;
   word-break: break-all;
+}
+
+.profile-wallet-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 6px;
+}
+
+.wallet-copy-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: #cbd5e1;
+  border-radius: 4px;
+  padding: 3px 6px;
+  cursor: pointer;
+  font-size: 0.75rem;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.wallet-copy-btn:hover {
+  background: rgba(255, 255, 255, 0.2);
+  color: #ffffff;
+}
+
+.wallet-copied-text {
+  font-size: 0.7rem;
+  color: #34d399;
+  font-weight: 600;
 }
 
 .sidebar-nav {
@@ -1413,3 +1444,175 @@ img {
     gap: 4px;
   }
 }
+
+/* ---- Auth Tabs & Screens (Phase B2) ---- */
+.auth-tab-group {
+  display: flex;
+  background-color: #f1f5f9;
+  padding: 4px;
+  border-radius: var(--radius-md);
+  margin-bottom: 24px;
+  gap: 4px;
+}
+
+.auth-tab-btn {
+  flex: 1;
+  padding: 10px 16px;
+  font-size: 0.9375rem;
+  font-weight: var(--font-weight-medium);
+  border: none;
+  background: transparent;
+  color: var(--color-text-muted);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  text-align: center;
+}
+
+.auth-tab-btn:hover {
+  color: var(--color-text-primary);
+}
+
+.auth-tab-btn.active {
+  background-color: #ffffff;
+  color: var(--color-primary);
+  font-weight: var(--font-weight-semibold);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+
+.warning-state {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 16px;
+  background-color: #fefce8;
+  border: 1px solid #fef08a;
+  border-radius: var(--radius-md);
+  font-size: var(--font-size-sm);
+  color: #854d0e;
+  margin-bottom: 16px;
+}
+
+/* Doctor Pending Approval Screen */
+.doctor-pending-card {
+  text-align: center;
+  padding: 16px 8px;
+}
+
+.doctor-pending-icon {
+  width: 72px;
+  height: 72px;
+  margin: 0 auto 20px;
+  background-color: #fef3c7;
+  color: #d97706;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.doctor-pending-title {
+  font-size: 1.5rem;
+  font-weight: var(--font-weight-bold);
+  color: var(--color-text-primary);
+  margin-bottom: 12px;
+}
+
+.doctor-pending-badge {
+  display: inline-block;
+  padding: 6px 14px;
+  background-color: #eff6ff;
+  color: #1d4ed8;
+  border: 1px solid #bfdbfe;
+  border-radius: 9999px;
+  font-size: 0.8125rem;
+  font-weight: var(--font-weight-semibold);
+  margin-bottom: 20px;
+}
+
+.doctor-pending-desc {
+  font-size: 0.9375rem;
+  line-height: 1.6;
+  color: var(--color-text-secondary);
+  margin-bottom: 16px;
+}
+
+.doctor-pending-info {
+  background-color: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: var(--radius-md);
+  padding: 14px 18px;
+  font-size: 0.875rem;
+  color: var(--color-text-muted);
+  line-height: 1.5;
+  margin-bottom: 28px;
+  text-align: left;
+}
+
+/* Administrator Notice Card */
+.admin-notice-page {
+  min-height: 80vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+.admin-notice-card {
+  background: #ffffff;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: 40px;
+  max-width: 520px;
+  width: 100%;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.08);
+  text-align: center;
+}
+
+.admin-notice-badge {
+  display: inline-block;
+  background: #f1f5f9;
+  color: #475569;
+  border: 1px solid #cbd5e1;
+  border-radius: 9999px;
+  padding: 4px 12px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 16px;
+}
+
+.admin-notice-card h2 {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--color-text-primary);
+  margin-bottom: 8px;
+}
+
+.admin-notice-email {
+  font-size: 0.9375rem;
+  color: var(--color-text-secondary);
+  margin-bottom: 20px;
+}
+
+.admin-notice-box {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: var(--radius-md);
+  padding: 16px;
+  font-size: 0.875rem;
+  color: var(--color-text-secondary);
+  line-height: 1.6;
+  text-align: left;
+  margin-bottom: 24px;
+}
+
+.admin-notice-box code {
+  background: #e2e8f0;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 0.8125rem;
+  color: #0f172a;
+}
+
