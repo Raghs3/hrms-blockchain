@@ -13,7 +13,8 @@ const JWT_EXPIRY = "8h";
 // ── Rate limiters ─────────────────────────────────────────────────────────────
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 20,
+  max: Number(process.env.AUTH_RATE_LIMIT_MAX || 100),
+  skipSuccessfulRequests: true,
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: "TOO_MANY_REQUESTS" },
@@ -108,6 +109,13 @@ async function login(req, res) {
   }
   if (account.role === "doctor" && account.status === "rejected") {
     return res.status(403).json({ error: "DOCTOR_REJECTED" });
+  }
+
+  // Self-heal on-chain registration for approved accounts if needed (idempotent, non-demo path only)
+  if (account.status === "approved" && (account.role === "patient" || account.role === "doctor")) {
+    const wallet = walletForAccount(account.id);
+    await ensureRegistered(wallet, account.role);
+    store.setName(wallet.address, account.name);
   }
 
   const token = signToken(account);

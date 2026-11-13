@@ -9,7 +9,7 @@
 
 ### `POST /auth/register`
 **File:** `routes.js:56` → `auth.js:register`  
-**Rate-limited:** 20 req / 15 min per IP  
+**Rate-limited:** `AUTH_RATE_LIMIT_MAX` (default 100) per 15 min per IP (`skipSuccessfulRequests: true`)  
 **Auth:** None  
 **Body:** `{ name: string, email: string, password: string (min 8), role: "patient"|"doctor" }`
 
@@ -27,7 +27,7 @@
 
 ### `POST /auth/login`
 **File:** `routes.js:57` → `auth.js:login`  
-**Rate-limited:** 20 req / 15 min per IP  
+**Rate-limited:** `AUTH_RATE_LIMIT_MAX` (default 100) per 15 min per IP (`skipSuccessfulRequests: true`)  
 **Auth:** None  
 **Body:** `{ email: string, password: string }`
 
@@ -43,6 +43,7 @@
 
 ### `POST /auth/demo-login`
 **File:** `routes.js:58` → `auth.js:demoLogin`  
+**Rate-limited:** `AUTH_RATE_LIMIT_MAX` (default 100) per 15 min per IP (`skipSuccessfulRequests: true`)  
 **Available only when:** `DEMO_AUTH=true` (default: false)  
 **Body:** `{ name: string, role: "patient"|"doctor" }`
 
@@ -77,18 +78,6 @@
 | Wrong role (admin) | 403 | `{ error: "WRONG_ROLE" }` |
 
 *Returns only approved doctors.*
-
----
-
-### `GET /doctor/dashboard`
-**File:** `routes.js:61`  
-**Auth:** Bearer token (doctor only)
-
-| Scenario | Status | Response |
-|---|---|---|
-| Doctor access | 200 | `{ ok: true }` |
-| Patient access | 403 | `{ error: "WRONG_ROLE" }` |
-| Unauthenticated | 401 | `{ error: "INVALID_TOKEN" }` |
 
 ---
 

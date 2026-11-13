@@ -40,6 +40,33 @@ npm run approve-doctor -- doctor@example.com
 
 This sets the doctor's status to `approved` and registers them on-chain.
 
+## Clean Reset Procedure
+
+To completely reset both on-chain and off-chain state from scratch:
+1. Stop all services (Hardhat node and backend).
+2. Delete local store and IPFS storage:
+   ```bash
+   rm -rf data/store.json .local-ipfs/
+   ```
+3. Restart Hardhat node in `contracts/`:
+   ```bash
+   cd ../contracts && npx hardhat node
+   ```
+4. In another terminal, redeploy the contracts:
+   ```bash
+   npx hardhat run scripts/deploy.js --network localhost
+   ```
+5. In `backend/`, seed demo accounts:
+   ```bash
+   npm run seed
+   ```
+6. Start backend:
+   ```bash
+   npm start
+   ```
+
+> **Note on Fresh-Chain Self-Healing:** The backend automatically self-heals on-chain registrations for approved accounts during login if the Hardhat chain is restarted without clearing `store.json`. However, following the full clean reset procedure above is recommended for a 100% pristine environment.
+
 ## Environment Variables
 
 | Variable                | Required | Default                    | Description                              |

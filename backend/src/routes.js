@@ -58,7 +58,6 @@ router.post("/auth/login", authLimiter, wrap(login));
 router.post("/auth/demo-login", authLimiter, wrap(demoLogin));
 router.get("/auth/me", requireAuth(), (req, res) => me(req, res));
 router.get("/doctors", requireAuth("patient", "doctor"), doctors);
-router.get("/doctor/dashboard", requireAuth("doctor"), (req, res) => res.json({ ok: true }));
 
 router.post("/records/upload", requireAuth("patient"), upload.single("file"), wrap(async (req, res) => {
   if (!req.file) return res.status(400).json({ error: "FILE_REQUIRED" });
