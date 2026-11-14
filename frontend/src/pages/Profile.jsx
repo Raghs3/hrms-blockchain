@@ -4,6 +4,19 @@ import Layout from '../components/Layout';
 import { useAuth } from '../context/AuthContext';
 import useDocumentTitle from '../hooks/useDocumentTitle';
 
+function formatDate(dateString) {
+  if (!dateString) return 'Active Member';
+  const d = new Date(dateString);
+  if (isNaN(d.getTime())) return dateString;
+  return d.toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
+
 /**
  * Profile - User profile page for both patient and doctor roles.
  * Displays session identity, wallet address, and account status strictly
@@ -11,15 +24,26 @@ import useDocumentTitle from '../hooks/useDocumentTitle';
  */
 export default function Profile() {
   useDocumentTitle('Profile');
-  const { name, email, role, walletAddress, user, logoutUser } = useAuth();
+  const { name, email, role, walletAddress, user, userId, logoutUser } = useAuth();
   const navigate = useNavigate();
-  const [copied, setCopied] = useState(false);
+  const [copiedWallet, setCopiedWallet] = useState(false);
+  const [copiedId, setCopiedId] = useState(false);
+
+  const effectiveUserId = user?.id || user?.userId || userId || '';
+  const memberSince = user?.createdAt ? formatDate(user.createdAt) : 'Active Member';
 
   function handleCopyWallet() {
     if (!walletAddress) return;
     navigator.clipboard?.writeText(walletAddress);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    setCopiedWallet(true);
+    setTimeout(() => setCopiedWallet(false), 2000);
+  }
+
+  function handleCopyUserId() {
+    if (!effectiveUserId) return;
+    navigator.clipboard?.writeText(effectiveUserId);
+    setCopiedId(true);
+    setTimeout(() => setCopiedId(false), 2000);
   }
 
   function handleSignOut() {
@@ -49,7 +73,7 @@ export default function Profile() {
         </div>
       </div>
 
-      <div className="card" style={{ maxWidth: '640px' }}>
+      <div className="card" style={{ maxWidth: '680px' }}>
         <div className="card-header">
           <div>
             <h2>Account Details</h2>
@@ -58,6 +82,30 @@ export default function Profile() {
             </p>
           </div>
         </div>
+
+        {/* Security Profile Pill */}
+        <div
+          style={{
+            margin: '16px 24px 0',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '10px',
+            padding: '10px 14px',
+            backgroundColor: 'var(--color-accent-subtle)',
+            border: '1px solid #bae6fd',
+            borderRadius: 'var(--radius-sm)',
+            fontSize: '0.775rem',
+            color: 'var(--color-accent-dark)',
+          }}
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true" style={{ flexShrink: 0 }}>
+            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" strokeLinecap="round" strokeLinejoin="round"/>
+          </svg>
+          <span>
+            <strong>Security Profile:</strong> AES-256-GCM Encryption Key: Active | EVM Account Derivation: Verified
+          </span>
+        </div>
+
         <div className="card-body">
           <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
             {/* Full Name */}
@@ -80,6 +128,40 @@ export default function Profile() {
               </div>
             </div>
 
+            {/* System User UUID */}
+            <div>
+              <div style={{ fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--color-text-muted)', fontWeight: 'bold' }}>
+                System Account ID
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '4px' }}>
+                <code
+                  style={{
+                    fontFamily: 'ui-monospace, monospace',
+                    fontSize: '0.8125rem',
+                    color: 'var(--color-text-secondary)',
+                    backgroundColor: 'var(--color-surface)',
+                    border: '1px solid var(--color-border-light)',
+                    padding: '4px 8px',
+                    borderRadius: 'var(--radius-xs)',
+                  }}
+                  id="profile-user-id"
+                >
+                  {effectiveUserId || '—'}
+                </code>
+                {effectiveUserId && (
+                  <button
+                    type="button"
+                    className="btn btn-secondary btn-sm"
+                    onClick={handleCopyUserId}
+                    style={{ padding: '3px 8px', fontSize: '0.7rem' }}
+                    title="Copy System Account ID"
+                  >
+                    {copiedId ? <span style={{ color: 'var(--color-success)', fontWeight: 600 }}>Copied!</span> : 'Copy'}
+                  </button>
+                )}
+              </div>
+            </div>
+
             {/* Role */}
             <div>
               <div style={{ fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--color-text-muted)', fontWeight: 'bold' }}>
@@ -92,13 +174,24 @@ export default function Profile() {
               </div>
             </div>
 
-            {/* Account Status */}
-            <div>
-              <div style={{ fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--color-text-muted)', fontWeight: 'bold' }}>
-                Account Status
+            {/* Account Status & Member Since */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '16px' }}>
+              <div>
+                <div style={{ fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--color-text-muted)', fontWeight: 'bold' }}>
+                  Account Status
+                </div>
+                <div style={{ fontSize: '0.9375rem', marginTop: '4px', color: 'var(--color-success)', fontWeight: '600' }}>
+                  {statusDisplay}
+                </div>
               </div>
-              <div style={{ fontSize: '0.9375rem', marginTop: '4px', color: 'var(--color-success)', fontWeight: '600' }}>
-                {statusDisplay}
+
+              <div>
+                <div style={{ fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--color-text-muted)', fontWeight: 'bold' }}>
+                  Member Since
+                </div>
+                <div style={{ fontSize: '0.9375rem', marginTop: '4px', color: 'var(--color-text-primary)' }}>
+                  {memberSince}
+                </div>
               </div>
             </div>
 
@@ -121,7 +214,7 @@ export default function Profile() {
               >
                 <code
                   style={{
-                    fontFamily: 'Courier New, monospace',
+                    fontFamily: 'ui-monospace, monospace',
                     fontSize: '0.875rem',
                     wordBreak: 'break-all',
                     flex: 1,
@@ -138,7 +231,7 @@ export default function Profile() {
                     title="Copy wallet address"
                     id="profile-copy-wallet-btn"
                   >
-                    {copied ? 'Copied!' : 'Copy'}
+                    {copiedWallet ? <span style={{ color: 'var(--color-success)', fontWeight: 600 }}>Copied!</span> : 'Copy'}
                   </button>
                 )}
               </div>

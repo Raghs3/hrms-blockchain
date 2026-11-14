@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import NetworkStatus from './NetworkStatus';
 
 const PATIENT_NAV_ITEMS = [
   {
@@ -230,6 +231,11 @@ export default function Sidebar({ navItems, mobileOpen, onMobileClose }) {
             );
           })}
         </nav>
+
+        {/* Network Health Status */}
+        <div style={{ padding: '0 12px 12px' }}>
+          <NetworkStatus />
+        </div>
 
         {/* Footer */}
         <div className="sidebar-footer">
