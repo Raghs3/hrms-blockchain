@@ -1,20 +1,64 @@
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
-import { AuthProvider } from './context/AuthContext';
+import { BrowserRouter, Routes, Route, Navigate, Outlet } from 'react-router-dom';
+import { AuthProvider, useAuth } from './context/AuthContext';
 import { ToastProvider } from './context/ToastContext';
+import { DoctorSessionProvider } from './context/DoctorSessionContext';
 import ProtectedRoute from './components/ProtectedRoute';
+import LoadingState from './components/LoadingState';
+import NotFound from './components/NotFound';
 import Login from './pages/Login';
-import PatientDashboard from './pages/PatientDashboard';
-import DoctorDashboard from './pages/DoctorDashboard';
+import PatientOverview from './pages/patient/PatientOverview';
+import PatientRecords from './pages/patient/PatientRecords';
+import PatientUpload from './pages/patient/PatientUpload';
+import PatientAccess from './pages/patient/PatientAccess';
+import DoctorOverview from './pages/doctor/DoctorOverview';
+import DoctorLookupPage from './pages/doctor/DoctorLookupPage';
+import Profile from './pages/Profile';
 import './styles/global.css';
 
 /**
- * App - Root component with routing setup.
- *
- * Routes:
- *   /login   - Login page (public)
- *   /patient - Patient dashboard (requires patient role)
- *   /doctor  - Doctor dashboard (requires doctor role)
- *   /        - Redirects to /login
+ * RootRedirect - Redirects authenticated users to their home portal
+ * (/patient or /doctor; admin notice behavior preserved), otherwise redirects to /login.
+ */
+function RootRedirect() {
+  const { isLoading, isAuthenticated, role } = useAuth();
+
+  if (isLoading) {
+    return (
+      <div
+        className="route-loading-container"
+        style={{
+          minHeight: '60vh',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}
+      >
+        <LoadingState message="Verifying session..." />
+      </div>
+    );
+  }
+
+  if (!isAuthenticated) {
+    return <Navigate to="/login" replace />;
+  }
+
+  if (role === 'doctor') {
+    return <Navigate to="/doctor" replace />;
+  }
+
+  if (role === 'admin') {
+    return (
+      <ProtectedRoute>
+        <div />
+      </ProtectedRoute>
+    );
+  }
+
+  return <Navigate to="/patient" replace />;
+}
+
+/**
+ * App - Root component with complete modular route table.
  */
 export default function App() {
   return (
@@ -25,31 +69,68 @@ export default function App() {
             {/* Public */}
             <Route path="/login" element={<Login />} />
 
-            {/* Patient only */}
+            {/* Root redirect */}
+            <Route path="/" element={<RootRedirect />} />
+
+            {/* Patient routes (guarded by patient role) */}
             <Route
               path="/patient"
               element={
                 <ProtectedRoute requiredRole="patient">
-                  <PatientDashboard />
+                  <PatientOverview />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/patient/records"
+              element={
+                <ProtectedRoute requiredRole="patient">
+                  <PatientRecords />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/patient/upload"
+              element={
+                <ProtectedRoute requiredRole="patient">
+                  <PatientUpload />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/patient/access"
+              element={
+                <ProtectedRoute requiredRole="patient">
+                  <PatientAccess />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/patient/profile"
+              element={
+                <ProtectedRoute requiredRole="patient">
+                  <Profile />
                 </ProtectedRoute>
               }
             />
 
-            {/* Doctor only */}
+            {/* Doctor routes (guarded by doctor role; session history lifted across all doctor pages) */}
             <Route
-              path="/doctor"
               element={
                 <ProtectedRoute requiredRole="doctor">
-                  <DoctorDashboard />
+                  <DoctorSessionProvider>
+                    <Outlet />
+                  </DoctorSessionProvider>
                 </ProtectedRoute>
               }
-            />
+            >
+              <Route path="/doctor" element={<DoctorOverview />} />
+              <Route path="/doctor/lookup" element={<DoctorLookupPage />} />
+              <Route path="/doctor/profile" element={<Profile />} />
+            </Route>
 
-            {/* Default redirect */}
-            <Route path="/" element={<Navigate to="/login" replace />} />
-
-            {/* 404 fallback */}
-            <Route path="*" element={<Navigate to="/login" replace />} />
+            {/* 404 Catch-all */}
+            <Route path="*" element={<NotFound />} />
           </Routes>
         </ToastProvider>
       </AuthProvider>

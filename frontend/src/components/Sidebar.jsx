@@ -1,16 +1,108 @@
 import { useState } from 'react';
+import { NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { useNavigate } from 'react-router-dom';
+
+const PATIENT_NAV_ITEMS = [
+  {
+    label: 'Overview',
+    to: '/patient',
+    end: true,
+    icon: (
+      <svg width="18" height="18" viewBox="0 0 16 16" fill="none">
+        <rect x="1" y="1" width="6" height="6" rx="1.5" stroke="currentColor" strokeWidth="1.6" />
+        <rect x="9" y="1" width="6" height="6" rx="1.5" stroke="currentColor" strokeWidth="1.6" />
+        <rect x="1" y="9" width="6" height="6" rx="1.5" stroke="currentColor" strokeWidth="1.6" />
+        <rect x="9" y="9" width="6" height="6" rx="1.5" stroke="currentColor" strokeWidth="1.6" />
+      </svg>
+    ),
+  },
+  {
+    label: 'My Records',
+    to: '/patient/records',
+    icon: (
+      <svg width="18" height="18" viewBox="0 0 16 16" fill="none">
+        <path d="M3 2h10a1 1 0 011 1v10a1 1 0 01-1 1H3a1 1 0 01-1-1V3a1 1 0 011-1z" stroke="currentColor" strokeWidth="1.6" />
+        <path d="M5 5h6M5 8h6M5 11h4" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+      </svg>
+    ),
+  },
+  {
+    label: 'Upload Record',
+    to: '/patient/upload',
+    icon: (
+      <svg width="18" height="18" viewBox="0 0 16 16" fill="none">
+        <path d="M8 2v9M4.5 5.5L8 2l3.5 3.5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+        <path d="M2 11v2a1 1 0 001 1h10a1 1 0 001-1v-2" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+      </svg>
+    ),
+  },
+  {
+    label: 'Access & Consent',
+    to: '/patient/access',
+    icon: (
+      <svg width="18" height="18" viewBox="0 0 16 16" fill="none">
+        <circle cx="8" cy="8" r="6" stroke="currentColor" strokeWidth="1.6" />
+        <path d="M5.5 8l2 2 3.5-3.5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    ),
+  },
+  {
+    label: 'Profile',
+    to: '/patient/profile',
+    icon: (
+      <svg width="18" height="18" viewBox="0 0 16 16" fill="none">
+        <circle cx="8" cy="5.5" r="3" stroke="currentColor" strokeWidth="1.6" />
+        <path d="M2.5 14a5.5 5.5 0 0111 0" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+      </svg>
+    ),
+  },
+];
+
+const DOCTOR_NAV_ITEMS = [
+  {
+    label: 'Overview',
+    to: '/doctor',
+    end: true,
+    icon: (
+      <svg width="18" height="18" viewBox="0 0 16 16" fill="none">
+        <rect x="1" y="1" width="6" height="6" rx="1.5" stroke="currentColor" strokeWidth="1.6" />
+        <rect x="9" y="1" width="6" height="6" rx="1.5" stroke="currentColor" strokeWidth="1.6" />
+        <rect x="1" y="9" width="6" height="6" rx="1.5" stroke="currentColor" strokeWidth="1.6" />
+        <rect x="9" y="9" width="6" height="6" rx="1.5" stroke="currentColor" strokeWidth="1.6" />
+      </svg>
+    ),
+  },
+  {
+    label: 'Record Lookup',
+    to: '/doctor/lookup',
+    icon: (
+      <svg width="18" height="18" viewBox="0 0 16 16" fill="none">
+        <circle cx="7" cy="7" r="5" stroke="currentColor" strokeWidth="1.6" />
+        <path d="M11 11l3.5 3.5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+      </svg>
+    ),
+  },
+  {
+    label: 'Profile',
+    to: '/doctor/profile',
+    icon: (
+      <svg width="18" height="18" viewBox="0 0 16 16" fill="none">
+        <circle cx="8" cy="5.5" r="3" stroke="currentColor" strokeWidth="1.6" />
+        <path d="M2.5 14a5.5 5.5 0 0111 0" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+      </svg>
+    ),
+  },
+];
 
 /**
- * Sidebar - Navigation sidebar for dashboards.
+ * Sidebar - Role-based navigation sidebar using NavLink with active state.
  *
  * Props:
- *   navItems: Array<{ label, icon, active, onClick }>
+ *   navItems: optional override array of nav items
  *   mobileOpen: boolean
  *   onMobileClose: function
  */
-export default function Sidebar({ navItems = [], mobileOpen, onMobileClose }) {
+export default function Sidebar({ navItems, mobileOpen, onMobileClose }) {
   const { name, role, walletAddress, logoutUser } = useAuth();
   const navigate = useNavigate();
   const [copied, setCopied] = useState(false);
@@ -27,7 +119,6 @@ export default function Sidebar({ navItems = [], mobileOpen, onMobileClose }) {
     setTimeout(() => setCopied(false), 2000);
   }
 
-  // Truncate wallet address for display
   function truncateWallet(address) {
     if (!address) return '';
     if (address.length <= 14) return address;
@@ -36,6 +127,9 @@ export default function Sidebar({ navItems = [], mobileOpen, onMobileClose }) {
 
   const roleLabel =
     role === 'doctor' ? 'Doctor' : role === 'admin' ? 'Administrator' : 'Patient';
+
+  const defaultItems = role === 'doctor' ? DOCTOR_NAV_ITEMS : PATIENT_NAV_ITEMS;
+  const items = navItems || defaultItems;
 
   return (
     <>
@@ -91,18 +185,38 @@ export default function Sidebar({ navItems = [], mobileOpen, onMobileClose }) {
 
         {/* Navigation */}
         <nav className="sidebar-nav">
-          {navItems.map((item) => (
-            <button
-              key={item.label}
-              type="button"
-              className={`sidebar-nav-item${item.active ? ' active' : ''}`}
-              aria-current={item.active ? 'page' : undefined}
-              onClick={item.onClick}
-            >
-              {item.icon && <span aria-hidden="true">{item.icon}</span>}
-              {item.label}
-            </button>
-          ))}
+          {items.map((item) => {
+            if (item.to) {
+              return (
+                <NavLink
+                  key={item.to}
+                  to={item.to}
+                  end={item.end}
+                  className={({ isActive }) => `sidebar-nav-item${isActive ? ' active' : ''}`}
+                  onClick={onMobileClose}
+                  id={`nav-link-${item.label.toLowerCase().replace(/[^a-z0-9]/g, '-')}`}
+                >
+                  {item.icon && <span aria-hidden="true">{item.icon}</span>}
+                  {item.label}
+                </NavLink>
+              );
+            }
+            return (
+              <button
+                key={item.label}
+                type="button"
+                className={`sidebar-nav-item${item.active ? ' active' : ''}`}
+                aria-current={item.active ? 'page' : undefined}
+                onClick={() => {
+                  item.onClick?.();
+                  onMobileClose?.();
+                }}
+              >
+                {item.icon && <span aria-hidden="true">{item.icon}</span>}
+                {item.label}
+              </button>
+            );
+          })}
         </nav>
 
         {/* Footer */}
@@ -112,9 +226,10 @@ export default function Sidebar({ navItems = [], mobileOpen, onMobileClose }) {
             className="sidebar-nav-item"
             onClick={handleLogout}
             aria-label="Sign out"
+            id="sidebar-sign-out-btn"
           >
             <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-              <path d="M6 14H3a1 1 0 01-1-1V3a1 1 0 011-1h3M11 11l3-3m0 0l-3-3m3 3H6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+              <path d="M6 14H3a1 1 0 01-1-1V3a1 1 0 011-1h3M11 11l3-3m0 0l-3-3m3 3H6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
             Sign Out
           </button>
@@ -123,4 +238,3 @@ export default function Sidebar({ navItems = [], mobileOpen, onMobileClose }) {
     </>
   );
 }
-

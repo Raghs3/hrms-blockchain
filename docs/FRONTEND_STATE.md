@@ -2,7 +2,22 @@
 
 ## Done
 
-1. **Doctor Dashboard Live Integration (Phase C2 - `frontend-doctor`):**
+1. **Structure & Navigation Routing (Phase E - `frontend-pages`):**
+   - **Modular Role-Based Page Architecture:** Split the monolithic dashboards into dedicated pages, one per sidebar navigation item:
+     - `/patient` (PatientOverview): Metric cards, short 3-record preview with link to full records, quick actions to upload/access, workflow instructions.
+     - `/patient/records` (PatientRecords): Full data table with newest-first sorting, IPFS CIDs, and direct links to manage access.
+     - `/patient/upload` (PatientUpload): Reusable inline `UploadRecordForm` with complete client validations (.txt/.md/.csv/.json, 10MB limit, empty file, <=100 char label), multi-step progress, shortened tx hash with copy, and "Upload another" / "View my records" actions. Replaced modal upload completely.
+     - `/patient/access` (PatientAccess): Dedicated access & consent portal displaying record rows with authorized doctor chips, on-chain `RevokeAccessModal`, and `GrantAccessModal`.
+     - `/patient/profile` and `/doctor/profile` (Profile): Shared profile displaying session identity, email, role, status, and wallet address with copy button directly from `useAuth()` with zero API calls.
+     - `/doctor` (DoctorOverview): Summary cards, short preview of recent lookups, quick link to Record Lookup, and workflow card.
+     - `/doctor/lookup` (DoctorLookupPage): Dedicated `RecordLookup` component with numeric string ID validation, access badges, secure plain text `<pre>` viewer, hide button, and recent lookup reuse buttons.
+     - `/` (RootRedirect): Redirects authenticated doctors to `/doctor`, authenticated patients to `/patient`, preserves admin notice, and redirects unauthenticated visitors to `/login`.
+     - `*` (NotFound): Friendly 404 page with navigation button back to the user's dashboard or login.
+   - **Lifted Doctor Session History:** Wrapped doctor routes in `<DoctorSessionProvider>` using React Context so in-memory lookups, viewed counts, and recent lookup items survive route navigation between `/doctor`, `/doctor/lookup`, and `/doctor/profile`.
+   - **Role-Based NavLink Sidebar:** Sidebar dynamically derives active navigation links using React Router `NavLink`, highlighting current pages and clearing mobile menus.
+   - **Dynamic Document Titles:** Added `useDocumentTitle` hook setting `<title>` on every page route.
+
+2. **Doctor Dashboard Live Integration (Phase C2 - `frontend-doctor`):**
    - **Self-Contained Lookup & Viewer:** Extracted lookup and viewing logic into `RecordLookup.jsx`, separating domain actions from page layout.
    - **Strict Numeric ID Validation:** Client-side digits-only regex (`/^\d+$/`) on trimmed input displaying `"Enter a numeric record ID"` and suppressing outbound requests on invalid input. Record IDs remain strings throughout.
    - **Access Verification:** Single "Check Access" action querying `GET /records/:id/access-check`. Displays clear "ACCESS GRANTED" or "ACCESS DENIED" badges.
@@ -36,6 +51,24 @@
 3. **API Client & Shared Helpers (Phase B1 - `frontend/live-api`):**
    - Unified Axios instance in `src/api/axios.js` with Bearer token injection and centralized 401 handling.
    - Shared error normalization in `src/api/errors.js` mapping all 20 backend error codes to user-friendly messages.
+
+---
+
+## Page & Route Map (Phase E)
+
+| Path | Component | Guard / Access | Purpose |
+| :--- | :--- | :--- | :--- |
+| `/login` | `Login` | Public | Authentication (Sign In & Register tabs) |
+| `/` | `RootRedirect` | None (inspects session) | Redirects to `/doctor` or `/patient` (or admin notice); unauthenticated to `/login` |
+| `/patient` | `PatientOverview` | `requiredRole="patient"` | Metrics summary, 3-record preview, quick actions, workflow card |
+| `/patient/records` | `PatientRecords` | `requiredRole="patient"` | Full records table with IPFS CIDs, newest-first sorting, access links |
+| `/patient/upload` | `PatientUpload` | `requiredRole="patient"` | Inline `UploadRecordForm` with validations and post-upload actions |
+| `/patient/access` | `PatientAccess` | `requiredRole="patient"` | Access & consent portal with doctor chips, Grant and Revoke modals |
+| `/patient/profile` | `Profile` | `requiredRole="patient"` | Identity, email, role, status, wallet address with copy, sign out |
+| `/doctor` | `DoctorOverview` | `requiredRole="doctor"` | Active session summary cards, recent lookups preview, workflow card |
+| `/doctor/lookup` | `DoctorLookupPage` | `requiredRole="doctor"` | `RecordLookup` with numeric ID check, view, hide, click-to-reuse |
+| `/doctor/profile` | `Profile` | `requiredRole="doctor"` | Identity, email, role, status, wallet address with copy, sign out |
+| `*` | `NotFound` | Public | 404 error page with navigation back home |
 
 ---
 
@@ -84,6 +117,24 @@
 - [ ] **Manual Refresh & Double Click Safety:**
   1. Click "Refresh" in the patient header. Expect records to reload cleanly.
   2. Rapidly double click action submit buttons; expect submission state to disable buttons and prevent duplicate transactions.
+
+---
+
+## Page & Route Map (Phase E)
+
+| Path | Component | Guard / Access | Purpose |
+| :--- | :--- | :--- | :--- |
+| `/login` | `Login` | Public | Authentication (Sign In & Register tabs) |
+| `/` | `RootRedirect` | None (inspects session) | Redirects to `/doctor` or `/patient` (or admin notice); unauthenticated to `/login` |
+| `/patient` | `PatientOverview` | `requiredRole="patient"` | Metrics summary, 3-record preview, quick actions, workflow card |
+| `/patient/records` | `PatientRecords` | `requiredRole="patient"` | Full records table with IPFS CIDs, newest-first sorting, access links |
+| `/patient/upload` | `PatientUpload` | `requiredRole="patient"` | Inline `UploadRecordForm` with validations and post-upload actions |
+| `/patient/access` | `PatientAccess` | `requiredRole="patient"` | Access & consent portal with doctor chips, Grant and Revoke modals |
+| `/patient/profile` | `Profile` | `requiredRole="patient"` | Identity, email, role, status, wallet address with copy, sign out |
+| `/doctor` | `DoctorOverview` | `requiredRole="doctor"` | Active session summary cards, recent lookups preview, workflow card |
+| `/doctor/lookup` | `DoctorLookupPage` | `requiredRole="doctor"` | `RecordLookup` with numeric ID check, view, hide, click-to-reuse |
+| `/doctor/profile` | `Profile` | `requiredRole="doctor"` | Identity, email, role, status, wallet address with copy, sign out |
+| `*` | `NotFound` | Public | 404 error page with navigation back home |
 
 ---
 
