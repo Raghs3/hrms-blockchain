@@ -2,6 +2,7 @@ import { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { uploadRecord } from '../api/records';
 import { useToast } from '../context/ToastContext';
+import { useAuditTrail } from '../context/AuditTrailContext';
 
 const ALLOWED_EXTENSIONS = ['.txt', '.md', '.csv', '.json'];
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10 MB
@@ -26,6 +27,7 @@ function truncateHash(hash) {
  */
 export default function UploadRecordForm({ onSuccess }) {
   const { showToast } = useToast();
+  const { addAuditEvent } = useAuditTrail();
   const navigate = useNavigate();
 
   const [label, setLabel] = useState('');
@@ -128,6 +130,14 @@ export default function UploadRecordForm({ onSuccess }) {
 
       const result = await uploadRecord(formData);
       setUploadResult(result);
+      addAuditEvent({
+        type: 'RECORD_UPLOADED',
+        recordId: result.recordId,
+        label: trimmedLabel,
+        cid: result.cid,
+        txHash: result.txHash,
+        timestamp: result.uploadedAt || new Date().toISOString(),
+      });
       showToast({
         type: 'success',
         title: 'Record uploaded',

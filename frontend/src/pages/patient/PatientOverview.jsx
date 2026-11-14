@@ -2,7 +2,9 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import Layout from '../../components/Layout';
 import RecordTable from '../../components/RecordTable';
+import AuditTrail from '../../components/AuditTrail';
 import { useAuth } from '../../context/AuthContext';
+import { useAuditTrail } from '../../context/AuditTrailContext';
 import { getMyRecords } from '../../api/records';
 import useDocumentTitle from '../../hooks/useDocumentTitle';
 
@@ -14,6 +16,7 @@ import useDocumentTitle from '../../hooks/useDocumentTitle';
 export default function PatientOverview() {
   useDocumentTitle('Overview');
   const { walletAddress } = useAuth();
+  const { seedFromRecords } = useAuditTrail();
 
   const [records, setRecords] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -24,7 +27,9 @@ export default function PatientOverview() {
     setError('');
     try {
       const data = await getMyRecords();
-      setRecords(Array.isArray(data) ? data : []);
+      const list = Array.isArray(data) ? data : [];
+      setRecords(list);
+      seedFromRecords(list);
     } catch (err) {
       let message = err?.message || 'Failed to load records. Please try again.';
       if (err?.code === 'NOT_A_PATIENT') {
@@ -34,14 +39,16 @@ export default function PatientOverview() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [seedFromRecords]);
 
   useEffect(() => {
     let ignore = false;
     getMyRecords()
       .then((data) => {
         if (!ignore) {
-          setRecords(Array.isArray(data) ? data : []);
+          const list = Array.isArray(data) ? data : [];
+          setRecords(list);
+          seedFromRecords(list);
           setLoading(false);
         }
       })
@@ -59,7 +66,7 @@ export default function PatientOverview() {
     return () => {
       ignore = true;
     };
-  }, []);
+  }, [seedFromRecords]);
 
   const sortedRecords = useMemo(() => {
     return [...records].sort((a, b) => {
@@ -259,6 +266,9 @@ export default function PatientOverview() {
           />
         </div>
       </div>
+
+      {/* On-Chain Activity & Audit Trail */}
+      <AuditTrail maxItems={8} title="Recent On-Chain Activity & Audit Trail" />
 
       {/* System Flow explanation */}
       <div

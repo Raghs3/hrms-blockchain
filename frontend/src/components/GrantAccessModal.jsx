@@ -3,6 +3,7 @@ import Modal from './Modal';
 import { grantAccess } from '../api/records';
 import { getDoctors } from '../api/auth';
 import { useToast } from '../context/ToastContext';
+import { useAuditTrail } from '../context/AuditTrailContext';
 
 const ADDRESS_REGEX = /^0x[a-fA-F0-9]{40}$/;
 
@@ -21,6 +22,7 @@ function truncateHash(hash) {
  */
 export default function GrantAccessModal({ record, onSuccess }) {
   const { showToast } = useToast();
+  const { addAuditEvent } = useAuditTrail();
   const [isOpen, setIsOpen] = useState(false);
   const [selectedAddress, setSelectedAddress] = useState('');
   const [customAddress, setCustomAddress] = useState('');
@@ -109,6 +111,16 @@ export default function GrantAccessModal({ record, onSuccess }) {
         (d) => d.walletAddress?.toLowerCase() === targetAddress.toLowerCase()
       );
       const docDisplayName = docMatch?.name || `${targetAddress.slice(0, 6)}...${targetAddress.slice(-4)}`;
+
+      addAuditEvent({
+        type: 'ACCESS_GRANTED',
+        recordId: record.recordId,
+        label: record.label || `Record #${record.recordId}`,
+        doctorAddress: targetAddress,
+        doctorName: docDisplayName,
+        txHash: result.txHash,
+        timestamp: new Date().toISOString(),
+      });
 
       showToast({
         type: 'success',

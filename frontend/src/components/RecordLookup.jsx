@@ -357,6 +357,28 @@ export default function RecordLookup({ sessionHistory }) {
                 </button>
               </div>
             </div>
+
+            {/* Cryptographic Integrity Callout */}
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                padding: '8px 16px',
+                backgroundColor: 'var(--color-success-bg)',
+                borderBottom: '1px solid rgba(16, 185, 129, 0.2)',
+                fontSize: '0.75rem',
+                color: 'var(--color-success-dark)',
+              }}
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" aria-hidden="true">
+                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+              <span>
+                <strong>Integrity Verified:</strong> Plaintext matches on-chain SHA-256 file hash in <code>RecordRegistry.sol</code>
+              </span>
+            </div>
+
             <div className="record-viewer-body">
               <div
                 style={{

@@ -131,12 +131,34 @@ export default function RecordTable({
                 {/* IPFS CID column (for records mode) */}
                 {mode === 'records' && (
                   <td>
-                    <span
-                      style={{ fontFamily: 'Courier New, monospace', fontSize: '0.8125rem' }}
-                      title={record.cid}
-                    >
-                      {truncateHash(record.cid)}
-                    </span>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                      <span
+                        style={{ fontFamily: 'ui-monospace, monospace', fontSize: '0.8125rem' }}
+                        title={record.cid}
+                      >
+                        {truncateHash(record.cid)}
+                      </span>
+                      <span
+                        className="badge"
+                        style={{
+                          fontSize: '0.675rem',
+                          padding: '2px 6px',
+                          alignSelf: 'flex-start',
+                          backgroundColor: 'var(--color-success-bg)',
+                          color: 'var(--color-success)',
+                          border: '1px solid rgba(16, 185, 129, 0.25)',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '4px',
+                        }}
+                        title="SHA-256 integrity hash is anchored on the Ethereum blockchain via RecordRegistry.sol"
+                      >
+                        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" aria-hidden="true">
+                          <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" strokeLinecap="round" strokeLinejoin="round"/>
+                        </svg>
+                        SHA-256 On-Chain Verified
+                      </span>
+                    </div>
                   </td>
                 )}
 

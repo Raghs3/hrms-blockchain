@@ -2,6 +2,7 @@ import { useState } from 'react';
 import Modal from './Modal';
 import { revokeAccess } from '../api/records';
 import { useToast } from '../context/ToastContext';
+import { useAuditTrail } from '../context/AuditTrailContext';
 
 function truncateHash(hash) {
   if (!hash) return '';
@@ -19,6 +20,7 @@ function truncateHash(hash) {
  */
 export default function RevokeAccessModal({ record, doctor, onSuccess }) {
   const { showToast } = useToast();
+  const { addAuditEvent } = useAuditTrail();
   const [isOpen, setIsOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -50,6 +52,15 @@ export default function RevokeAccessModal({ record, doctor, onSuccess }) {
     try {
       const result = await revokeAccess(record.recordId, doctor.walletAddress);
       setRevokeResult(result);
+      addAuditEvent({
+        type: 'ACCESS_REVOKED',
+        recordId: record.recordId,
+        label: record.label || `Record #${record.recordId}`,
+        doctorAddress: doctor.walletAddress,
+        doctorName: doctor.name || 'Doctor',
+        txHash: result.txHash,
+        timestamp: new Date().toISOString(),
+      });
       showToast({
         type: 'info',
         title: 'Access revoked',

@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate, Outlet } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { ToastProvider } from './context/ToastContext';
+import { AuditTrailProvider } from './context/AuditTrailContext';
 import { DoctorSessionProvider } from './context/DoctorSessionContext';
 import ProtectedRoute from './components/ProtectedRoute';
 import LoadingState from './components/LoadingState';
@@ -68,7 +69,8 @@ export default function App() {
       <BrowserRouter>
         <AuthProvider>
           <ToastProvider>
-            <Routes>
+            <AuditTrailProvider>
+              <Routes>
             {/* Public */}
             <Route path="/login" element={<Login />} />
 
@@ -143,9 +145,10 @@ export default function App() {
             {/* 404 Catch-all */}
             <Route path="*" element={<NotFound />} />
           </Routes>
-        </ToastProvider>
-      </AuthProvider>
-    </BrowserRouter>
+        </AuditTrailProvider>
+      </ToastProvider>
+    </AuthProvider>
+  </BrowserRouter>
   </ErrorBoundary>
 );
 }

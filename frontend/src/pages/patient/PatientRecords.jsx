@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import Layout from '../../components/Layout';
 import RecordTable from '../../components/RecordTable';
+import { useAuditTrail } from '../../context/AuditTrailContext';
 import { getMyRecords } from '../../api/records';
 import useDocumentTitle from '../../hooks/useDocumentTitle';
 
@@ -11,6 +12,7 @@ import useDocumentTitle from '../../hooks/useDocumentTitle';
  */
 export default function PatientRecords() {
   useDocumentTitle('My Records');
+  const { seedFromRecords } = useAuditTrail();
 
   const [records, setRecords] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -21,7 +23,9 @@ export default function PatientRecords() {
     setError('');
     try {
       const data = await getMyRecords();
-      setRecords(Array.isArray(data) ? data : []);
+      const list = Array.isArray(data) ? data : [];
+      setRecords(list);
+      seedFromRecords(list);
     } catch (err) {
       let message = err?.message || 'Failed to load records. Please try again.';
       if (err?.code === 'NOT_A_PATIENT') {
@@ -31,14 +35,16 @@ export default function PatientRecords() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [seedFromRecords]);
 
   useEffect(() => {
     let ignore = false;
     getMyRecords()
       .then((data) => {
         if (!ignore) {
-          setRecords(Array.isArray(data) ? data : []);
+          const list = Array.isArray(data) ? data : [];
+          setRecords(list);
+          seedFromRecords(list);
           setLoading(false);
         }
       })
@@ -56,7 +62,7 @@ export default function PatientRecords() {
     return () => {
       ignore = true;
     };
-  }, []);
+  }, [seedFromRecords]);
 
   const sortedRecords = useMemo(() => {
     return [...records].sort((a, b) => {

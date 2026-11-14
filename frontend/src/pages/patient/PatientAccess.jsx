@@ -2,6 +2,8 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import Layout from '../../components/Layout';
 import RecordTable from '../../components/RecordTable';
+import AuditTrail from '../../components/AuditTrail';
+import { useAuditTrail } from '../../context/AuditTrailContext';
 import { getMyRecords } from '../../api/records';
 import useDocumentTitle from '../../hooks/useDocumentTitle';
 
@@ -14,6 +16,7 @@ export default function PatientAccess() {
 
   const [searchParams] = useSearchParams();
   const targetDoctor = searchParams.get('doctor');
+  const { seedFromRecords } = useAuditTrail();
 
   const [records, setRecords] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -24,7 +27,9 @@ export default function PatientAccess() {
     setError('');
     try {
       const data = await getMyRecords();
-      setRecords(Array.isArray(data) ? data : []);
+      const list = Array.isArray(data) ? data : [];
+      setRecords(list);
+      seedFromRecords(list);
     } catch (err) {
       let message = err?.message || 'Failed to load records. Please try again.';
       if (err?.code === 'NOT_A_PATIENT') {
@@ -34,14 +39,16 @@ export default function PatientAccess() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [seedFromRecords]);
 
   useEffect(() => {
     let ignore = false;
     getMyRecords()
       .then((data) => {
         if (!ignore) {
-          setRecords(Array.isArray(data) ? data : []);
+          const list = Array.isArray(data) ? data : [];
+          setRecords(list);
+          seedFromRecords(list);
           setLoading(false);
         }
       })
@@ -59,7 +66,7 @@ export default function PatientAccess() {
     return () => {
       ignore = true;
     };
-  }, []);
+  }, [seedFromRecords]);
 
   const sortedRecords = useMemo(() => {
     return [...records].sort((a, b) => {
@@ -177,6 +184,11 @@ export default function PatientAccess() {
             onRetry={loadRecords}
           />
         </div>
+      </div>
+
+      {/* On-Chain Access Audit Trail */}
+      <div style={{ marginTop: '24px' }}>
+        <AuditTrail maxItems={10} title="Access & Permission Transaction History" />
       </div>
     </Layout>
   );
