@@ -178,18 +178,33 @@ curl -s -X POST http://localhost:4000/auth/login \
    - Confirm modal prompt -> submit revocation.
    - Verify badge flips to `Private` and doctor chip is removed.
 
-### End-to-End Doctor Flow Rehearsal
-1. Sign out of patient session via sidebar.
-2. Sign in as `doctor@demo.local` / `Doctor1234!`.
-3. Verify landing on `/doctor`:
-   - Metric cards display viewed records count and last lookup status.
-4. Navigate to **Record Lookup** (`/doctor/lookup`):
-   - Enter a record ID (e.g., `1`).
-   - Click **Check Access**.
-   - If granted: green badge displays `Access Granted by Patient`.
-   - Click **View Decrypted Record**: secure plaintext preview opens with pre-formatted content.
-   - Click **Hide Record**: content safely unmounts from DOM.
-   - If denied: red badge displays `Access Denied (Blockchain Verified)` with patient privacy advisory.
+### End-to-End Multi-Role Lifecycle Rehearsal (Phase L)
+The complete end-to-end integration across all roles (Admin, Doctor, Patient) was verified with 30 passing assertions:
+1. **Administrator Authentication**:
+   - Log into `/admin` with `admin@demo.local` / `Admin1234!`.
+   - Verify `role: 'admin'`, landing on the Hospital Administrator Portal.
+   - Run live EVM node & gateway diagnostics (`GET /health`).
+2. **Doctor Onboarding & Security Boundary**:
+   - Register a new practitioner via `/login` -> Register tab (e.g. `dr.smith@hospital.local`).
+   - Verify status is initialized to `pending` and JWT token is strictly withheld.
+   - Verify unapproved login attempts return HTTP 403 `DOCTOR_PENDING`.
+3. **On-Chain Approval Pipeline**:
+   - Administrator generates approval command from `/admin`: `npm run approve-doctor -- <email>`.
+   - Execute script; verify practitioner deterministic wallet is derived and registered in `UserRegistry.sol`.
+   - Approved practitioner logs in, receives token, and status updates to `approved`.
+4. **Patient Directory Discovery & Record Upload**:
+   - Patient logs into `/patient`.
+   - Navigates to **Doctors Directory** (`/patient/doctors`); verifies newly approved practitioner appears with verified badge and wallet address.
+   - Navigates to **Upload Record** (`/patient/upload`); uploads encrypted text document.
+   - Verifies IPFS CID and Ethereum transaction hash are anchored on-chain.
+5. **Zero-Trust Access Control & Plaintext Decryption**:
+   - Prior to consent grant, practitioner lookup reports `authorized: false` and view returns HTTP 403.
+   - Patient grants consent on `/patient/access`; verifies `ACCESS_GRANTED` event on audit trail.
+   - Practitioner checks access; verified `authorized: true`.
+   - Practitioner views decrypted plaintext; verifies content and `RecordRegistry.sol` SHA-256 integrity match.
+6. **On-Chain Revocation**:
+   - Patient revokes practitioner access; verifies `ACCESS_REVOKED` event.
+   - Practitioner re-check immediately denies access (`authorized: false`, view HTTP 403 `ACCESS_DENIED`).
 
 ---
 
