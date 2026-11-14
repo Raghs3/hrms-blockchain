@@ -6,8 +6,8 @@ This document tracks capabilities needed or beneficial for the frontend UI that 
 
 ## 1. Doctor-Accessible Records List (`GET /records/shared-with-me`)
 - **Gap:** The backend provides `GET /records/mine` exclusively for patients (403 `WRONG_ROLE` if called by a doctor). There is currently no endpoint allowing a doctor to query the list of records they have been granted access to.
-- **Why it matters:** On the Doctor Dashboard, doctors cannot see a table or list of patient records shared with them; they must know the numeric `recordId` in advance.
-- **Frontend Fallback Implemented:** The Doctor Dashboard's "Accessible Records" summary card displays "On-Demand" instead of hardcoded numbers. The UI provides an on-demand Record Lookup input where the doctor enters the numeric ID (e.g. `1`) to execute `GET /records/:id/access-check` and `GET /records/:id/view`.
+- **Why it matters:** On the Doctor Dashboard, doctors cannot see a server-side list of patient records shared with them; they must know the numeric `recordId` in advance.
+- **Frontend Fallback Implemented:** The Doctor Dashboard implements an in-memory session history tracking lookups and viewed records during the active session (`useSessionHistory`). Summary cards display "Records Viewed (This Session)" and "Last Lookup". The `RecordLookup` component provides an on-demand numeric ID lookup executing `GET /records/:id/access-check` and `GET /records/:id/view`, accompanied by a "Recent lookups (this session)" list with click-to-reuse actions.
 
 ---
 

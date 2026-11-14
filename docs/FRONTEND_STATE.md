@@ -2,7 +2,18 @@
 
 ## Done
 
-1. **Patient Dashboard Live Integration (Phase C1 - `frontend-patient`):**
+1. **Doctor Dashboard Live Integration (Phase C2 - `frontend-doctor`):**
+   - **Self-Contained Lookup & Viewer:** Extracted lookup and viewing logic into `RecordLookup.jsx`, separating domain actions from page layout.
+   - **Strict Numeric ID Validation:** Client-side digits-only regex (`/^\d+$/`) on trimmed input displaying `"Enter a numeric record ID"` and suppressing outbound requests on invalid input. Record IDs remain strings throughout.
+   - **Access Verification:** Single "Check Access" action querying `GET /records/:id/access-check`. Displays clear "ACCESS GRANTED" or "ACCESS DENIED" badges.
+   - **Secure Content Viewer:** "View Record" button enabled only upon granted access. Content rendered inside `<pre>` with whitespace preserved and line wrapping (React text rendering only, zero `dangerouslySetInnerHTML`). Detects binary/non-printable payload and displays `"Preview not supported in this demo"`.
+   - **Revocation-Between-Check-and-View:** Catches 403 `ACCESS_DENIED` on view, immediately flips status badge to `DENIED`, updates session log, and renders: `"Access was revoked. You no longer have permission to view this record."`.
+   - **Privacy Protection:** Automatically clears decrypted content on input change, upon starting a new check, when access is denied, and on component unmount. Added explicit "Hide record" button.
+   - **Double-Click / Pending State Protection:** Check Access and View buttons disabled during in-flight network requests, showing active loading text and spinner.
+   - **Live In-Memory Session History:** Created `useSessionHistory` tracking last 5 lookups (ID, result, timestamp), total records viewed, and most recent lookup, removing the hardcoded "On-Demand" placeholder. Added click-to-reuse buttons per recent lookup.
+   - **Text & Flow Cleanup:** Rewrote instructions to describe real email/password authentication, ID lookup, IPFS decryption, and revocation denial.
+
+2. **Patient Dashboard Live Integration (Phase C1 - `frontend-patient`):**
    - **Data Loading:** Implemented unified `loadRecords()` fetching `GET /records/mine`, called once on mount and automatically refreshed after upload, grant, or revoke, with an explicit "Refresh" button in the header.
    - **Sorting:** Sorted records newest-first by parsing `uploadedAt` descending (`new Date(b.uploadedAt) - new Date(a.uploadedAt)`), addressing the chain's oldest-first order.
    - **Metric Cards:** Fully computed from real loaded data (Total records = count, Active authorized doctors = unique count of doctor wallet addresses across all records, Recent upload = label of newest record by timestamp).
@@ -52,6 +63,24 @@
   2. Confirm modal displays doctor name and record label.
   3. Click "Revoke Access". Expect transaction hash on success.
   4. Confirm doctor chip disappears from the table and metrics decrement accordingly.
+- [ ] **Doctor Dashboard Record Lookup & Access Verification:**
+  1. Log in as an approved doctor account (`doctor@demo.local`).
+  2. Attempt lookup with empty or non-numeric string (e.g. `abc`, `-1`). Expect client validation message "Enter a numeric record ID" with zero network requests fired.
+  3. Enter an unauthorized or nonexistent record ID (e.g. `999999`). Click "Check Access". Expect "ACCESS DENIED" badge with "Check Again" button and "View Record" button hidden.
+  4. Enter an authorized record ID (shared by patient). Click "Check Access". Expect "ACCESS GRANTED" badge with "View Record" button enabled.
+  5. Click "View Record". Expect record label, Record ID, and decrypted plain text rendered in `<pre>`.
+  6. Verify "Records Viewed" metric increments to 1, and "Last Lookup" card reflects the record ID and GRANTED status.
+  7. Click "Hide record". Verify decrypted content is hidden while status badge remains.
+- [ ] **Revocation Between Check and View:**
+  1. Have patient grant access to record ID X.
+  2. Doctor clicks "Check Access" on record ID X -> "ACCESS GRANTED" badge appears.
+  3. Patient revokes access to record ID X in another window.
+  4. Doctor clicks "View Record".
+  5. Expect status badge to flip immediately to "ACCESS DENIED" and display: "Access was revoked. You no longer have permission to view this record."
+- [ ] **Session History & Reuse:**
+  1. Perform lookups for several records (e.g. 1, 2, 999999).
+  2. Confirm "Recent lookups (this session)" displays up to 5 entries with status chips and timestamps.
+  3. Click "Load ID" on a recent lookup item. Confirm the ID is populated into the input and prior views are cleared.
 - [ ] **Manual Refresh & Double Click Safety:**
   1. Click "Refresh" in the patient header. Expect records to reload cleanly.
   2. Rapidly double click action submit buttons; expect submission state to disable buttons and prevent duplicate transactions.
