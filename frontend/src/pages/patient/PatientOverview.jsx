@@ -111,6 +111,28 @@ export default function PatientOverview() {
           </p>
         </div>
         <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+          <button
+            type="button"
+            className="btn btn-secondary"
+            onClick={loadRecords}
+            disabled={loading}
+            title="Reload records from blockchain"
+            id="overview-refresh-btn"
+          >
+            {loading ? (
+              <>
+                <span className="spinner spinner-sm" aria-hidden="true" />
+                Refreshing...
+              </>
+            ) : (
+              <>
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2"/>
+                </svg>
+                Refresh
+              </>
+            )}
+          </button>
           <Link to="/patient/upload" className="btn btn-primary" id="overview-upload-btn">
             Upload Record
           </Link>
@@ -175,7 +197,7 @@ export default function PatientOverview() {
           >
             {recentUploadLabel}
           </div>
-          <div className="summary-card-sub">Latest repository update</div>
+          <div className="summary-card-sub">Latest medical record upload</div>
         </div>
 
         <div className="summary-card">

@@ -318,6 +318,56 @@ export default function Login() {
                       'Sign In'
                     )}
                   </button>
+
+                  {/* Demo Accounts Quick Fill */}
+                  <div
+                    style={{
+                      marginTop: '20px',
+                      padding: '12px 14px',
+                      background: 'var(--color-surface-subtle)',
+                      borderRadius: 'var(--radius-md)',
+                      border: '1px solid var(--color-border-light)',
+                    }}
+                  >
+                    <div
+                      style={{
+                        fontSize: '0.725rem',
+                        fontWeight: 600,
+                        color: 'var(--color-text-muted)',
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.05em',
+                        marginBottom: '8px',
+                      }}
+                    >
+                      Demo Accounts Quick-Fill
+                    </div>
+                    <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                      <button
+                        type="button"
+                        className="btn btn-secondary btn-sm"
+                        onClick={() => {
+                          setLoginEmail('patient@demo.local');
+                          setLoginPassword('Patient1234!');
+                          setError('');
+                        }}
+                        id="quick-fill-patient"
+                      >
+                        Patient (Riya Sharma)
+                      </button>
+                      <button
+                        type="button"
+                        className="btn btn-secondary btn-sm"
+                        onClick={() => {
+                          setLoginEmail('doctor@demo.local');
+                          setLoginPassword('Doctor1234!');
+                          setError('');
+                        }}
+                        id="quick-fill-doctor"
+                      >
+                        Doctor (Dr. Kapoor)
+                      </button>
+                    </div>
+                  </div>
                 </form>
               ) : (
                 /* Create Account Form */
