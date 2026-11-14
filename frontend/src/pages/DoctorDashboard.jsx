@@ -423,7 +423,7 @@ export default function DoctorDashboard() {
             letterSpacing: '0.06em',
           }}
         >
-          Demo Instructions
+          Doctor Verification Workflow
         </div>
         <ul
           style={{
@@ -434,10 +434,11 @@ export default function DoctorDashboard() {
             margin: 0,
           }}
         >
+          <li>Sign in with your approved doctor email and password.</li>
           <li>Enter the numeric Record ID (e.g. <strong style={{ fontFamily: 'Courier New, monospace' }}>1</strong>) shared by the patient.</li>
-          <li>If the patient has granted access, you will see <strong>Access Granted</strong>.</li>
-          <li>Click <strong>View Record</strong> to decrypt and read the record content.</li>
-          <li>After the patient revokes access, the same Record ID will show <strong>Access Denied</strong>.</li>
+          <li>If the patient has granted access on-chain, you will see <strong>Access Granted</strong>.</li>
+          <li>Click <strong>View Record</strong> to decrypt, verify blockchain integrity, and view the record content.</li>
+          <li>If the patient revokes access, the same Record ID will show <strong>Access Denied</strong>.</li>
         </ul>
       </div>
     </Layout>

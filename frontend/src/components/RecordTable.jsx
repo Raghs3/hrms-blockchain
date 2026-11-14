@@ -7,34 +7,61 @@ import RevokeAccessModal from './RevokeAccessModal';
  * RecordTable - Patient's record list as a professional data table.
  *
  * Props:
- *   records: array of record objects
+ *   records: array of record objects (sorted newest-first)
  *   loading: boolean
  *   error: string
  *   onRecordUpdate: function - Called when a record is updated (grant/revoke)
+ *   onRetry: function - Called to retry loading records on error
  */
-export default function RecordTable({ records, loading, error, onRecordUpdate }) {
+export default function RecordTable({ records = [], loading, error, onRecordUpdate, onRetry }) {
   function formatDate(dateString) {
     if (!dateString) return '—';
     const date = new Date(dateString);
+    if (isNaN(date.getTime())) return dateString;
     return date.toLocaleDateString('en-IN', {
       day: '2-digit',
       month: 'short',
       year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
     });
   }
 
   if (loading) {
-    return <LoadingState message="Loading records..." />;
+    return <LoadingState message="Loading healthcare records from blockchain..." />;
   }
 
   if (error) {
     return (
-      <div className="error-state" role="alert">
-        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-          <circle cx="8" cy="8" r="7" stroke="currentColor" strokeWidth="1.5"/>
-          <path d="M8 5v4M8 11v.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
-        </svg>
-        {error}
+      <div
+        className="error-state"
+        role="alert"
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          flexWrap: 'wrap',
+          gap: '12px',
+          padding: '14px 18px',
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <svg width="18" height="18" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+            <circle cx="8" cy="8" r="7" stroke="currentColor" strokeWidth="1.5"/>
+            <path d="M8 5v4M8 11v.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+          </svg>
+          <span>{error}</span>
+        </div>
+        {onRetry && (
+          <button
+            type="button"
+            className="btn btn-secondary btn-sm"
+            onClick={onRetry}
+            style={{ marginLeft: 'auto' }}
+          >
+            Retry
+          </button>
+        )}
       </div>
     );
   }
@@ -42,8 +69,17 @@ export default function RecordTable({ records, loading, error, onRecordUpdate })
   if (!records || records.length === 0) {
     return (
       <EmptyState
-        title="No records found"
-        description="Upload your first medical record to get started."
+        title="No healthcare records yet"
+        description="Upload your first medical record to get started with secure blockchain storage and doctor consent."
+        action={
+          <button
+            type="button"
+            className="btn btn-primary"
+            onClick={() => document.getElementById('upload-record-btn')?.click()}
+          >
+            Upload your first record
+          </button>
+        }
       />
     );
   }
@@ -54,7 +90,7 @@ export default function RecordTable({ records, loading, error, onRecordUpdate })
         <thead>
           <tr>
             <th scope="col">Record</th>
-            <th scope="col">Date</th>
+            <th scope="col">Uploaded</th>
             <th scope="col">Authorized Doctors</th>
             <th scope="col">Status</th>
             <th scope="col">Actions</th>
@@ -62,14 +98,14 @@ export default function RecordTable({ records, loading, error, onRecordUpdate })
         </thead>
         <tbody>
           {records.map((record) => {
-            const hasDoctors = record.authorizedDoctors && record.authorizedDoctors.length > 0;
+            const hasDoctors = Array.isArray(record.authorizedDoctors) && record.authorizedDoctors.length > 0;
             return (
               <tr key={record.recordId}>
                 {/* Record info */}
                 <td>
-                  <div className="table-cell-primary">{record.label}</div>
+                  <div className="table-cell-primary">{record.label || 'Untitled Record'}</div>
                   <div className="table-cell-secondary" style={{ fontFamily: 'Courier New, monospace' }}>
-                    {record.recordId}
+                    ID: {record.recordId}
                   </div>
                 </td>
 
@@ -84,17 +120,21 @@ export default function RecordTable({ records, loading, error, onRecordUpdate })
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                       {record.authorizedDoctors.map((doc) => (
                         <div key={doc.walletAddress} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                          <span className="doctor-chip">{doc.name}</span>
+                          <span className="doctor-chip" title={doc.walletAddress}>
+                            {doc.name || `${doc.walletAddress.slice(0, 6)}...${doc.walletAddress.slice(-4)}`}
+                          </span>
                           <RevokeAccessModal
                             record={record}
                             doctor={doc}
-                            onSuccess={() => onRecordUpdate()}
+                            onSuccess={() => onRecordUpdate && onRecordUpdate()}
                           />
                         </div>
                       ))}
                     </div>
                   ) : (
-                    <span className="no-doctors">No doctors authorized</span>
+                    <span className="no-doctors" style={{ color: 'var(--color-text-muted)', fontSize: '0.875rem' }}>
+                      No doctors authorized
+                    </span>
                   )}
                 </td>
 
@@ -112,7 +152,7 @@ export default function RecordTable({ records, loading, error, onRecordUpdate })
                   <div className="table-actions">
                     <GrantAccessModal
                       record={record}
-                      onSuccess={() => onRecordUpdate()}
+                      onSuccess={() => onRecordUpdate && onRecordUpdate()}
                     />
                   </div>
                 </td>

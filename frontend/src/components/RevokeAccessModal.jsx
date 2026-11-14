@@ -3,13 +3,19 @@ import Modal from './Modal';
 import { revokeAccess } from '../api/records';
 import { useToast } from '../context/ToastContext';
 
+function truncateHash(hash) {
+  if (!hash) return '';
+  if (hash.length <= 16) return hash;
+  return `${hash.slice(0, 10)}...${hash.slice(-8)}`;
+}
+
 /**
  * RevokeAccessModal - Confirmation modal for revoking a doctor's access.
  *
  * Props:
  *   record: { recordId, label }
  *   doctor: { walletAddress, name }
- *   onSuccess: function - Called after successful revoke
+ *   onSuccess: function - Called after successful revoke to refresh record list
  */
 export default function RevokeAccessModal({ record, doctor, onSuccess }) {
   const { showToast } = useToast();
@@ -17,16 +23,25 @@ export default function RevokeAccessModal({ record, doctor, onSuccess }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [revokeResult, setRevokeResult] = useState(null);
+  const [copied, setCopied] = useState(false);
 
   function handleOpen() {
     setIsOpen(true);
     setError('');
     setRevokeResult(null);
+    setCopied(false);
   }
 
   function handleClose() {
     if (loading) return;
     setIsOpen(false);
+  }
+
+  function handleCopyTxHash(hash) {
+    if (!hash) return;
+    navigator.clipboard?.writeText(hash);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
   }
 
   async function handleRevoke() {
@@ -38,12 +53,21 @@ export default function RevokeAccessModal({ record, doctor, onSuccess }) {
       showToast({
         type: 'info',
         title: 'Access revoked',
-        message: `${doctor.name}'s access to "${record.label}" has been revoked.`,
+        message: `${doctor.name || 'Doctor'}'s access to "${record.label}" has been revoked.`,
       });
-      onSuccess(doctor.walletAddress);
+      if (onSuccess) {
+        onSuccess(doctor.walletAddress);
+      }
     } catch (err) {
-      const message = err?.message || 'Failed to revoke access. Please try again.';
+      let message = err?.message || 'Failed to revoke access. Please try again.';
+      if (err?.code === 'NOT_A_PATIENT') {
+        message += ' Your wallet may not be registered on the current chain. Sign out and sign in again, then retry.';
+      }
       setError(message);
+      // For stale / repeated revoke attempts, also refresh the list so any out-of-sync UI updates
+      if (onSuccess) {
+        onSuccess(doctor.walletAddress);
+      }
     } finally {
       setLoading(false);
     }
@@ -52,6 +76,7 @@ export default function RevokeAccessModal({ record, doctor, onSuccess }) {
   return (
     <>
       <button
+        type="button"
         className="btn btn-sm btn-danger-outline"
         onClick={handleOpen}
         id={`revoke-access-${record.recordId}-${doctor.walletAddress}`}
@@ -59,7 +84,7 @@ export default function RevokeAccessModal({ record, doctor, onSuccess }) {
         Revoke
       </button>
 
-      <Modal isOpen={isOpen} onClose={handleClose} title="Revoke Access">
+      <Modal isOpen={isOpen} onClose={handleClose} title="Revoke Doctor Access">
         {revokeResult ? (
           <div className="modal-body">
             <div
@@ -82,17 +107,29 @@ export default function RevokeAccessModal({ record, doctor, onSuccess }) {
               </div>
               <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--color-warning)' }}>
                 <strong>Transaction Hash:</strong>
-                <div
-                  style={{
-                    fontFamily: 'Courier New, monospace',
-                    marginTop: '4px',
-                    wordBreak: 'break-all',
-                    background: 'rgba(255,255,255,0.5)',
-                    padding: '4px 8px',
-                    borderRadius: '3px',
-                  }}
-                >
-                  {revokeResult.txHash}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '6px' }}>
+                  <span
+                    style={{
+                      fontFamily: 'Courier New, monospace',
+                      wordBreak: 'break-all',
+                      background: 'rgba(255,255,255,0.7)',
+                      padding: '4px 8px',
+                      borderRadius: '3px',
+                      color: 'var(--color-text-primary)',
+                    }}
+                    title={revokeResult.txHash}
+                  >
+                    {truncateHash(revokeResult.txHash)}
+                  </span>
+                  <button
+                    type="button"
+                    className="btn btn-secondary btn-sm"
+                    style={{ padding: '2px 8px', fontSize: '0.75rem' }}
+                    onClick={() => handleCopyTxHash(revokeResult.txHash)}
+                    aria-label="Copy transaction hash"
+                  >
+                    {copied ? 'Copied!' : 'Copy'}
+                  </button>
                 </div>
               </div>
             </div>
@@ -109,19 +146,23 @@ export default function RevokeAccessModal({ record, doctor, onSuccess }) {
               </div>
             )}
 
-            <div style={{ marginBottom: '16px' }}>
-              <div style={{ fontSize: '0.875rem', color: 'var(--color-text-muted)' }}>Doctor: <strong style={{ color: 'var(--color-text-primary)' }}>{doctor.name}</strong></div>
-              <div style={{ fontSize: '0.875rem', color: 'var(--color-text-muted)', marginTop: '4px' }}>Record: <strong style={{ color: 'var(--color-text-primary)' }}>{record.label}</strong></div>
+            <div style={{ marginBottom: '16px', padding: '12px 14px', background: 'var(--color-bg)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--color-border-light)' }}>
+              <div style={{ fontSize: '0.875rem', color: 'var(--color-text-muted)' }}>
+                Doctor: <strong style={{ color: 'var(--color-text-primary)' }}>{doctor.name || 'Unnamed Doctor'}</strong>
+              </div>
+              <div style={{ fontSize: '0.875rem', color: 'var(--color-text-muted)', marginTop: '4px' }}>
+                Record: <strong style={{ color: 'var(--color-text-primary)' }}>{record.label}</strong> (ID: {record.recordId})
+              </div>
             </div>
 
             <p className="confirm-text" style={{ fontSize: '1rem', fontWeight: 'var(--font-weight-medium)', color: 'var(--color-text-primary)' }}>
-              This doctor will no longer be able to retrieve this record.
+              Are you sure you want to revoke this doctor&apos;s access?
             </p>
             <p
               className="confirm-text"
-              style={{ marginTop: '8px', color: 'var(--color-text-muted)', fontSize: '0.875rem' }}
+              style={{ marginTop: '8px', color: 'var(--color-text-secondary)', fontSize: '0.875rem', lineHeight: '1.5' }}
             >
-              This revocation is submitted and confirmed on-chain. Future retrieval attempts will be denied.
+              This revocation is confirmed on the blockchain. Once revoked, the doctor will no longer be able to decrypt or view this medical record.
             </p>
 
             <div
@@ -134,7 +175,7 @@ export default function RevokeAccessModal({ record, doctor, onSuccess }) {
               }}
             >
               <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--color-text-muted)', marginBottom: '2px' }}>
-                Doctor Wallet
+                Doctor Wallet Address
               </div>
               <div
                 style={{
@@ -152,7 +193,7 @@ export default function RevokeAccessModal({ record, doctor, onSuccess }) {
 
         <div className="modal-footer">
           {revokeResult ? (
-            <button className="btn btn-secondary" onClick={handleClose}>
+            <button type="button" className="btn btn-secondary" onClick={handleClose}>
               Done
             </button>
           ) : (
@@ -166,6 +207,7 @@ export default function RevokeAccessModal({ record, doctor, onSuccess }) {
                 Cancel
               </button>
               <button
+                type="button"
                 className="btn btn-danger"
                 onClick={handleRevoke}
                 disabled={loading}
