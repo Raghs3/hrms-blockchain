@@ -44,6 +44,8 @@ coverage/
 !docs/API_CONTRACT.md
 !docs/FRONTEND_STATE.md
 !docs/BACKEND_GAPS.md
+!docs/RUNBOOK.md
+!docs/LIMITATIONS.md
 !backend/README.md
 
 # Claude Code local settings

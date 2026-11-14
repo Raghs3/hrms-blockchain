@@ -5,6 +5,7 @@ import { DoctorSessionProvider } from './context/DoctorSessionContext';
 import ProtectedRoute from './components/ProtectedRoute';
 import LoadingState from './components/LoadingState';
 import NotFound from './components/NotFound';
+import ErrorBoundary from './components/ErrorBoundary';
 import Login from './pages/Login';
 import PatientOverview from './pages/patient/PatientOverview';
 import PatientRecords from './pages/patient/PatientRecords';
@@ -62,10 +63,11 @@ function RootRedirect() {
  */
 export default function App() {
   return (
-    <BrowserRouter>
-      <AuthProvider>
-        <ToastProvider>
-          <Routes>
+    <ErrorBoundary>
+      <BrowserRouter>
+        <AuthProvider>
+          <ToastProvider>
+            <Routes>
             {/* Public */}
             <Route path="/login" element={<Login />} />
 
@@ -135,5 +137,6 @@ export default function App() {
         </ToastProvider>
       </AuthProvider>
     </BrowserRouter>
-  );
+  </ErrorBoundary>
+);
 }
