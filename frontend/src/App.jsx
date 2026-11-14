@@ -11,6 +11,7 @@ import PatientOverview from './pages/patient/PatientOverview';
 import PatientRecords from './pages/patient/PatientRecords';
 import PatientUpload from './pages/patient/PatientUpload';
 import PatientAccess from './pages/patient/PatientAccess';
+import DoctorsDirectory from './pages/patient/DoctorsDirectory';
 import DoctorOverview from './pages/doctor/DoctorOverview';
 import DoctorLookupPage from './pages/doctor/DoctorLookupPage';
 import Profile from './pages/Profile';
@@ -96,6 +97,14 @@ export default function App() {
               element={
                 <ProtectedRoute requiredRole="patient">
                   <PatientUpload />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/patient/doctors"
+              element={
+                <ProtectedRoute requiredRole="patient">
+                  <DoctorsDirectory />
                 </ProtectedRoute>
               }
             />

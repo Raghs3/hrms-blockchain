@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import Layout from '../../components/Layout';
 import RecordTable from '../../components/RecordTable';
 import { getMyRecords } from '../../api/records';
@@ -11,6 +11,9 @@ import useDocumentTitle from '../../hooks/useDocumentTitle';
  */
 export default function PatientAccess() {
   useDocumentTitle('Access & Consent');
+
+  const [searchParams] = useSearchParams();
+  const targetDoctor = searchParams.get('doctor');
 
   const [records, setRecords] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -112,6 +115,48 @@ export default function PatientAccess() {
           </Link>
         </div>
       </div>
+
+      {/* Target Doctor Callout from Directory */}
+      {targetDoctor && (
+        <div
+          className="card"
+          style={{
+            marginBottom: '20px',
+            padding: '14px 18px',
+            backgroundColor: 'var(--color-accent-subtle)',
+            borderColor: '#bae6fd',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            flexWrap: 'wrap',
+            gap: '12px',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <span
+              className="summary-card-icon"
+              style={{ width: '32px', height: '32px', background: 'var(--color-accent)', color: '#ffffff' }}
+              aria-hidden="true"
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+                <circle cx="9" cy="7" r="4" />
+              </svg>
+            </span>
+            <div>
+              <div style={{ fontSize: '0.875rem', fontWeight: 600, color: 'var(--color-text-primary)' }}>
+                Target Doctor Selected: <code style={{ fontFamily: 'ui-monospace, monospace' }}>{targetDoctor}</code>
+              </div>
+              <div style={{ fontSize: '0.775rem', color: 'var(--color-text-muted)' }}>
+                Select a record below and click &quot;Grant Access&quot; to authorize this practitioner on-chain.
+              </div>
+            </div>
+          </div>
+          <Link to="/patient/doctors" className="btn btn-secondary btn-sm">
+            View All Doctors
+          </Link>
+        </div>
+      )}
 
       <div className="card">
         <div className="card-header">
