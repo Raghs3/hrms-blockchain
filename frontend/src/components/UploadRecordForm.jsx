@@ -337,3 +337,4 @@ export default function UploadRecordForm({ onSuccess }) {
     </div>
   );
 }
+
