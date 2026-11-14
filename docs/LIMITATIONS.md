@@ -114,3 +114,4 @@ To satisfy clinical ethics while maintaining decentralization:
 - Medical imaging data (e.g., DICOM series, CT scans, 3D volumetric MRI) frequently ranges from 200 MB to 2 GB per patient session.
 - Streaming multi-gigabyte binary files through client-side Web Crypto APIs causes browser memory thrashing and thread blocking.
 - The current implementation intentionally limits uploads to text and structured health summaries to guarantee instant decryption, zero-lag rendering in the `<pre>` viewer, and reliable demonstration of the on-chain access control lifecycle.
+

@@ -217,3 +217,4 @@ curl -s -X POST http://localhost:4000/auth/login \
 - **Allowed Formats**: Plain text files (`.txt`, `.md`, `.csv`, `.json`).
 - **Maximum Size**: 10 MB.
 - **Reason**: Binary files (e.g., raw `.pdf`, `.exe`) are rejected by client validation to safeguard against non-printable data corruption during client-side AES-GCM streaming.
+
