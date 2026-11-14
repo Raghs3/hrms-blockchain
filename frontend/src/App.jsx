@@ -15,6 +15,7 @@ import PatientAccess from './pages/patient/PatientAccess';
 import DoctorsDirectory from './pages/patient/DoctorsDirectory';
 import DoctorOverview from './pages/doctor/DoctorOverview';
 import DoctorLookupPage from './pages/doctor/DoctorLookupPage';
+import AdminDashboard from './pages/admin/AdminDashboard';
 import Profile from './pages/Profile';
 import './styles/global.css';
 
@@ -50,11 +51,7 @@ function RootRedirect() {
   }
 
   if (role === 'admin') {
-    return (
-      <ProtectedRoute>
-        <div />
-      </ProtectedRoute>
-    );
+    return <Navigate to="/admin" replace />;
   }
 
   return <Navigate to="/patient" replace />;
@@ -141,6 +138,24 @@ export default function App() {
               <Route path="/doctor/lookup" element={<DoctorLookupPage />} />
               <Route path="/doctor/profile" element={<Profile />} />
             </Route>
+
+            {/* Administrator routes */}
+            <Route
+              path="/admin"
+              element={
+                <ProtectedRoute requiredRole="admin">
+                  <AdminDashboard />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/admin/profile"
+              element={
+                <ProtectedRoute requiredRole="admin">
+                  <Profile />
+                </ProtectedRoute>
+              }
+            />
 
             {/* 404 Catch-all */}
             <Route path="*" element={<NotFound />} />

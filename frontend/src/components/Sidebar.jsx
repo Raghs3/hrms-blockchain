@@ -107,6 +107,32 @@ const DOCTOR_NAV_ITEMS = [
   },
 ];
 
+const ADMIN_NAV_ITEMS = [
+  {
+    label: 'Admin Portal',
+    to: '/admin',
+    end: true,
+    icon: (
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+        <rect x="3" y="3" width="7" height="7" />
+        <rect x="14" y="3" width="7" height="7" />
+        <rect x="14" y="14" width="7" height="7" />
+        <rect x="3" y="14" width="7" height="7" />
+      </svg>
+    ),
+  },
+  {
+    label: 'Profile',
+    to: '/admin/profile',
+    icon: (
+      <svg width="18" height="18" viewBox="0 0 16 16" fill="none">
+        <circle cx="8" cy="5.5" r="3" stroke="currentColor" strokeWidth="1.6" />
+        <path d="M2.5 14a5.5 5.5 0 0111 0" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+      </svg>
+    ),
+  },
+];
+
 /**
  * Sidebar - Role-based navigation sidebar using NavLink with active state.
  *
@@ -141,7 +167,12 @@ export default function Sidebar({ navItems, mobileOpen, onMobileClose }) {
   const roleLabel =
     role === 'doctor' ? 'Doctor' : role === 'admin' ? 'Administrator' : 'Patient';
 
-  const defaultItems = role === 'doctor' ? DOCTOR_NAV_ITEMS : PATIENT_NAV_ITEMS;
+  const defaultItems =
+    role === 'doctor'
+      ? DOCTOR_NAV_ITEMS
+      : role === 'admin'
+      ? ADMIN_NAV_ITEMS
+      : PATIENT_NAV_ITEMS;
   const items = navItems || defaultItems;
 
   return (

@@ -20,3 +20,13 @@ This document tracks capabilities needed or beneficial for the frontend UI that 
 ## 3. Doctor Directory Dropdown in Grant Access Modal
 - **Status:** The backend provides `GET /doctors` (returning `{ doctors: [{ name, walletAddress }] }`), but `GrantAccessModal.jsx` currently requires manual entry of the doctor's wallet address.
 - **Recommended Enhancement:** In Phase B, incorporate a doctor selection dropdown populated by `GET /doctors` into `GrantAccessModal.jsx`.
+
+---
+
+## 4. Hospital Administrator Online Approval API (`GET /admin/pending-doctors`, `POST /admin/approve-doctor`)
+- **Gap:** The backend manages doctor approvals exclusively via the CLI script (`npm run approve-doctor -- <email>`). There are no authenticated REST endpoints for administrators to query pending registrations or trigger approval over HTTP.
+- **Frontend Fallback Implemented:** The Hospital Administrator Portal (`/admin`) provides an administrative dashboard featuring:
+  - System metric cards (Administrator credentials, Node Status, Gateway Status).
+  - CLI Doctor Approval Command Generator: Admins can enter a practitioner's email, generate the cryptographic on-chain approval CLI command, copy it with a single click, and view step-by-step verification instructions.
+  - Staff Accounts Roster: Pre-configured cryptographic identities initialized in the encrypted store.
+  - Live system diagnostics and gateway pinging via `GET /health`.
