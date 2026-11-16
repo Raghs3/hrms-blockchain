@@ -1,7 +1,7 @@
 const express = require("express");
 const multer = require("multer");
 const { ethers } = require("ethers");
-const { recordRegistry } = require("./chain");
+const { provider, recordRegistry } = require("./chain");
 const {
   register,
   login,
@@ -218,6 +218,115 @@ router.get("/records/:id/view", requireAuth(), parseRecordId, wrap(async (req, r
     label: store.getLabel(req.recordId.toString()),
     content: plaintext.toString("utf8"),
   });
+}));
+
+async function getBlockTimestamp(blockNumber, cache) {
+  if (!blockNumber) return new Date().toISOString();
+  if (cache.has(blockNumber)) return cache.get(blockNumber);
+  const promise = (async () => {
+    try {
+      const block = await provider.getBlock(blockNumber);
+      if (block?.timestamp) {
+        return new Date(Number(block.timestamp) * 1000).toISOString();
+      }
+    } catch {
+      // fallback
+    }
+    return new Date().toISOString();
+  })();
+  cache.set(blockNumber, promise);
+  return promise;
+}
+
+router.get("/audit-trail", requireAuth(), wrap(async (req, res) => {
+  const userRole = req.accountRecord?.role || req.user?.role;
+  const userAddress = req.wallet?.address;
+  const blockCache = new Map();
+  const rawEvents = [];
+
+  try {
+    if (userRole === "admin") {
+      const [added, granted, revoked] = await Promise.all([
+        recordRegistry.queryFilter(recordRegistry.filters.RecordAdded()),
+        recordRegistry.queryFilter(recordRegistry.filters.AccessGranted()),
+        recordRegistry.queryFilter(recordRegistry.filters.AccessRevoked()),
+      ]);
+      rawEvents.push(
+        ...added.map((log) => ({ log, type: "RECORD_ADDED", eventName: "RecordAdded" })),
+        ...granted.map((log) => ({ log, type: "ACCESS_GRANTED", eventName: "AccessGranted" })),
+        ...revoked.map((log) => ({ log, type: "ACCESS_REVOKED", eventName: "AccessRevoked" }))
+      );
+    } else if (userRole === "patient") {
+      const [added, granted, revoked] = await Promise.all([
+        recordRegistry.queryFilter(recordRegistry.filters.RecordAdded(null, userAddress)),
+        recordRegistry.queryFilter(recordRegistry.filters.AccessGranted(null, userAddress)),
+        recordRegistry.queryFilter(recordRegistry.filters.AccessRevoked(null, userAddress)),
+      ]);
+      rawEvents.push(
+        ...added.map((log) => ({ log, type: "RECORD_ADDED", eventName: "RecordAdded" })),
+        ...granted.map((log) => ({ log, type: "ACCESS_GRANTED", eventName: "AccessGranted" })),
+        ...revoked.map((log) => ({ log, type: "ACCESS_REVOKED", eventName: "AccessRevoked" }))
+      );
+    } else if (userRole === "doctor") {
+      const [granted, revoked] = await Promise.all([
+        recordRegistry.queryFilter(recordRegistry.filters.AccessGranted(null, null, userAddress)),
+        recordRegistry.queryFilter(recordRegistry.filters.AccessRevoked(null, null, userAddress)),
+      ]);
+      rawEvents.push(
+        ...granted.map((log) => ({ log, type: "ACCESS_GRANTED", eventName: "AccessGranted" })),
+        ...revoked.map((log) => ({ log, type: "ACCESS_REVOKED", eventName: "AccessRevoked" }))
+      );
+    } else {
+      return res.status(403).json({ error: "WRONG_ROLE" });
+    }
+
+    rawEvents.sort((a, b) => {
+      const blockDiff = Number(b.log.blockNumber) - Number(a.log.blockNumber);
+      if (blockDiff !== 0) return blockDiff;
+      return Number(b.log.index ?? 0) - Number(a.log.index ?? 0);
+    });
+
+    const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 50, 1), 100);
+    const offset = Math.max(parseInt(req.query.offset, 10) || 0, 0);
+    const total = rawEvents.length;
+    const pageSlice = rawEvents.slice(offset, offset + limit);
+
+    const events = await Promise.all(
+      pageSlice.map(async ({ log, type, eventName }) => {
+        const args = log.args || {};
+        const recordId = args.recordId ? args.recordId.toString() : null;
+        let timestamp;
+        if (args.timestamp) {
+          timestamp = new Date(Number(args.timestamp) * 1000).toISOString();
+        } else {
+          timestamp = await getBlockTimestamp(log.blockNumber, blockCache);
+        }
+
+        return {
+          type,
+          eventName,
+          recordId,
+          label: recordId ? store.getLabel(recordId) : null,
+          owner: args.owner || null,
+          ownerName: args.owner ? store.getName(args.owner) : null,
+          doctor: args.doctor || null,
+          doctorName: args.doctor ? store.getName(args.doctor) : null,
+          cid: args.cid || null,
+          fileHash: args.fileHash || null,
+          txHash: log.transactionHash,
+          blockNumber: Number(log.blockNumber),
+          timestamp,
+        };
+      })
+    );
+
+    res.json({ total, limit, offset, events });
+  } catch (err) {
+    if (err?.code === "NETWORK_ERROR" || err?.code === "SERVER_ERROR") {
+      return res.status(503).json({ error: "RPC_ERROR", message: "Blockchain RPC node unavailable" });
+    }
+    throw err;
+  }
 }));
 
 router.use((err, req, res, next) => {
