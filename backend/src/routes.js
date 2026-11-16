@@ -146,6 +146,41 @@ router.get("/records/mine", requireAuth("patient"), wrap(async (req, res) => {
   res.json(records);
 }));
 
+router.get("/records/shared-with-me", requireAuth("doctor"), wrap(async (req, res) => {
+  try {
+    const doctorAddress = req.wallet.address;
+    const filter = recordRegistry.filters.AccessGranted(null, null, doctorAddress);
+    const grants = await recordRegistry.queryFilter(filter);
+    const candidateIds = [...new Set(grants.map((e) => e.args.recordId))];
+    const records = [];
+    const asDoctor = recordRegistry.connect(req.wallet);
+
+    for (const id of candidateIds) {
+      const hasAccess = await recordRegistry.checkAccess(doctorAddress, id);
+      if (hasAccess) {
+        const record = await asDoctor.getRecord(id);
+        records.push({
+          recordId: id.toString(),
+          owner: record.owner,
+          ownerName: store.getName(record.owner),
+          label: store.getLabel(id.toString()),
+          uploadedAt: new Date(Number(record.timestamp) * 1000).toISOString(),
+          cid: record.cid,
+          fileHash: record.fileHash,
+        });
+      }
+    }
+
+    records.sort((a, b) => new Date(b.uploadedAt) - new Date(a.uploadedAt));
+    res.json(records);
+  } catch (err) {
+    if (err?.code === "NETWORK_ERROR" || err?.code === "SERVER_ERROR") {
+      return res.status(503).json({ error: "RPC_ERROR", message: "Blockchain RPC node unavailable" });
+    }
+    throw err;
+  }
+}));
+
 router.post("/records/:id/grant", requireAuth("patient"), parseRecordId, requireDoctorAddress, wrap(async (req, res) => {
   const tx = await recordRegistry.connect(req.wallet).grantAccess(req.recordId, req.doctorAddress);
   await tx.wait();
