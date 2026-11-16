@@ -214,6 +214,7 @@ router.get("/records/:id/view", requireAuth(), parseRecordId, wrap(async (req, r
   }
   res.json({
     recordId: req.recordId.toString(),
+    owner: record.owner,
     label: store.getLabel(req.recordId.toString()),
     content: plaintext.toString("utf8"),
   });
