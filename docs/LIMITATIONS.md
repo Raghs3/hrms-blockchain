@@ -54,20 +54,26 @@ HealthChain separates **access governance** from **data storage**:
 
 ---
 
-## 4. Query Capability: The Non-Iterable Mapping Gap (`GET /records/shared-with-me`)
+## 4. Query Capability: The Non-Iterable Mapping Gap & Event Log Solution (`GET /records/shared-with-me`)
 
 ### Technical Boundary
 In Solidity, mappings are implemented as hash tables without key tracking:
 ```solidity
-mapping(uint256 => mapping(address => bool)) private recordAccess;
+mapping(uint256 => mapping(address => bool)) private authorizedAccess;
 ```
-It is computationally impossible in the EVM to query: *"Find all record IDs where `recordAccess[id][doctorAddress] == true`"* without iterating across all record IDs in an unbounded loop (which would cause out-of-gas failures as record counts grow).
+It is computationally impossible in the EVM to query: *"Find all record IDs where `authorizedAccess[id][doctorAddress] == true`"* without iterating across all record IDs in an unbounded loop (which would cause out-of-gas failures as record counts grow).
 
-### Architectural Consequences
-- The backend API does not currently expose a native `GET /records/shared-with-me` endpoint.
-- Doctors look up records by specific numeric Record ID.
-- **Frontend Mitigation**: To provide an enterprise-grade clinician experience, the frontend implements `useSessionHistory.js` and `DoctorSessionContext.jsx`, which maintains and preserves doctor lookup history across page navigations in memory, tracking recently viewed and verified records.
-- **Production Solution**: A production system would implement an off-chain blockchain event indexer (e.g., The Graph, SubQuery, or a Kafka event consumer listening for `AccessGranted` / `AccessRevoked` events) that writes to a read-optimized PostgreSQL query table.
+### Architectural Solution (Backend Event Log Indexing)
+To resolve this gap without smart contract redeployment or gas-expensive on-chain storage, the backend implements event log querying:
+1. Queries all indexed `AccessGranted` event logs for the calling doctor's address via the ethers provider:
+   `recordRegistry.filters.AccessGranted(null, null, doctorAddress)`.
+2. Extracts unique candidate record IDs.
+3. Confirms current active access on each candidate ID in real time using `recordRegistry.checkAccess(doctorAddress, recordId)` (ensuring any revoked access is filtered out).
+4. Retrieves record metadata for active records via `getRecord(recordId)` and the local store index.
+5. Returns the consolidated list via `GET /records/shared-with-me`.
+
+### Production Scale Solution
+For high-volume enterprise deployments with millions of events, an off-chain blockchain event indexer (e.g., The Graph, SubQuery, or a Kafka consumer listening to `AccessGranted` and `AccessRevoked` blocks) caching into PostgreSQL provides sub-50ms query latency.
 
 ---
 

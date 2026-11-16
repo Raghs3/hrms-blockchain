@@ -82,6 +82,58 @@
 
 ---
 
+## Admin Endpoints
+
+> All admin endpoints require a valid Bearer token for an account with role `"admin"`.
+
+### `GET /admin/pending-doctors`
+**File:** `routes.js`  
+**Auth:** Bearer token (admin only)
+
+| Scenario | Status | Response |
+|---|---|---|
+| Success | 200 | `{ doctors: [User] }` (only accounts where role="doctor" and status="pending") |
+| Unauthenticated | 401 | `{ error: "INVALID_TOKEN" }` |
+| Wrong role (patient/doctor) | 403 | `{ error: "WRONG_ROLE" }` |
+
+*User shape:* `{ id, name, email, role, status, walletAddress, createdAt }`
+
+---
+
+### `POST /admin/doctors/:id/approve`
+**File:** `routes.js` → `auth.js:approveDoctor`  
+**Auth:** Bearer token (admin only)  
+**Param:** `:id` — Account ID (UUID) or email address of the doctor
+
+| Scenario | Status | Response |
+|---|---|---|
+| Success | 200 | `{ status: "approved", doctor: User }` |
+| Doctor not found | 404 | `{ error: "DOCTOR_NOT_FOUND" }` |
+| Account not a doctor | 400 | `{ error: "NOT_A_DOCTOR" }` |
+| Unauthenticated | 401 | `{ error: "INVALID_TOKEN" }` |
+| Wrong role (patient/doctor) | 403 | `{ error: "WRONG_ROLE" }` |
+
+*Executes on-chain `UserRegistry.registerDoctor(wallet)` if not already registered, and updates store status to `"approved"`.*
+
+---
+
+### `POST /admin/doctors/:id/reject`
+**File:** `routes.js` → `auth.js:rejectDoctor`  
+**Auth:** Bearer token (admin only)  
+**Param:** `:id` — Account ID (UUID) or email address of the doctor
+
+| Scenario | Status | Response |
+|---|---|---|
+| Success | 200 | `{ status: "rejected", doctor: User }` |
+| Doctor not found | 404 | `{ error: "DOCTOR_NOT_FOUND" }` |
+| Account not a doctor | 400 | `{ error: "NOT_A_DOCTOR" }` |
+| Unauthenticated | 401 | `{ error: "INVALID_TOKEN" }` |
+| Wrong role (patient/doctor) | 403 | `{ error: "WRONG_ROLE" }` |
+
+*Updates store status to `"rejected"`. Login attempts for this doctor will return 403 `DOCTOR_REJECTED`.*
+
+---
+
 ## Record Endpoints
 
 > All record endpoints require a valid Bearer token from `/auth/login`.  
@@ -104,18 +156,35 @@
 ---
 
 ### `GET /records/mine`
-**File:** `routes.js:85`  
+**File:** `routes.js:132`  
 **Auth:** patient only
 
 | Scenario | Status | Response |
 |---|---|---|
-| Success | 200 | `[{ recordId, label, uploadedAt, authorizedDoctors: [{ walletAddress, name }], cid }]` |
+| Success | 200 | `[{ recordId, label, uploadedAt, authorizedDoctors: [{ walletAddress, name }], cid, fileHash }]` |
 | Not a patient | 403 | `{ error: "WRONG_ROLE" }` |
+
+*Additive field: `fileHash` (bytes32 hex string) is included for on-chain integrity verification.*
+
+---
+
+### `GET /records/shared-with-me`
+**File:** `routes.js:149`  
+**Auth:** doctor only
+
+| Scenario | Status | Response |
+|---|---|---|
+| Success | 200 | `[{ recordId: string, owner: string, ownerName: string, label: string, uploadedAt: string, cid: string, fileHash: string }]` |
+| Unauthenticated | 401 | `{ error: "INVALID_TOKEN" }` |
+| Wrong role (patient/admin) | 403 | `{ error: "WRONG_ROLE" }` |
+| RPC failure | 503 | `{ error: "RPC_ERROR", message: string }` |
+
+*Reconstructs active doctor authorizations from `AccessGranted` event logs filtered and confirmed against smart contract `checkAccess`.*
 
 ---
 
 ### `POST /records/:id/grant`
-**File:** `routes.js:102`  
+**File:** `routes.js:185`  
 **Auth:** patient only  
 **Body:** `{ doctorAddress: string (wallet address) }`
 
@@ -130,7 +199,7 @@
 ---
 
 ### `POST /records/:id/revoke`
-**File:** `routes.js:108`  
+**File:** `routes.js:191`  
 **Auth:** patient only  
 **Body:** `{ doctorAddress: string (wallet address) }`
 
@@ -144,7 +213,7 @@
 ---
 
 ### `GET /records/:id/access-check`
-**File:** `routes.js:114`  
+**File:** `routes.js:197`  
 **Auth:** any authenticated user
 
 | Scenario | Status | Response |
@@ -155,17 +224,59 @@
 ---
 
 ### `GET /records/:id/view`
-**File:** `routes.js:126`  
+**File:** `routes.js:209`  
 **Auth:** any authenticated user (contract enforces access)
 
 | Scenario | Status | Response |
 |---|---|---|
-| Success | 200 | `{ recordId, label, content: string }` |
+| Success | 200 | `{ recordId, owner, label, content: string }` |
 | Access denied by contract | 403 | `{ error: "ACCESS_DENIED" }` |
 | Record not found | 404 | `{ error: "RECORD_NOT_FOUND" }` |
 | Integrity check failed | 500 | `{ error: "INTEGRITY_CHECK_FAILED" }` |
 
+*Additive field: `owner` (wallet address of the patient who owns the record) is returned in the response.*
 *The blockchain itself gates access; the backend cannot serve a file the chain has not approved.*
+
+---
+
+## Audit Trail Endpoints
+
+### `GET /audit-trail`
+**File:** `routes.js`  
+**Auth:** any authenticated user  
+**Query Params:**
+- `limit`: number (optional, default 50, max 100)
+- `offset`: number (optional, default 0)
+
+**Role Scoping:**
+- **Patient (`role="patient"`):** Returns events for records owned by the calling patient (`RecordAdded`, `AccessGranted`, `AccessRevoked`).
+- **Doctor (`role="doctor"`):** Returns events where the doctor is the participant/grantee (`AccessGranted`, `AccessRevoked`).
+- **Admin (`role="admin"`):** Returns all on-chain events across all records.
+
+| Scenario | Status | Response |
+|---|---|---|
+| Success | 200 | `{ total: number, limit: number, offset: number, events: [AuditEvent] }` |
+| Unauthenticated | 401 | `{ error: "INVALID_TOKEN" }` |
+| RPC failure | 503 | `{ error: "RPC_ERROR", message: string }` |
+
+**AuditEvent shape:**
+```json
+{
+  "type": "RECORD_ADDED" | "ACCESS_GRANTED" | "ACCESS_REVOKED",
+  "eventName": "RecordAdded" | "AccessGranted" | "AccessRevoked",
+  "recordId": "1",
+  "label": "Blood Test Report",
+  "owner": "0x9b69...",
+  "ownerName": "Riya Sharma",
+  "doctor": "0x37f0...",
+  "doctorName": "Dr. Kapoor",
+  "cid": "bafy...",
+  "fileHash": "0x560f...",
+  "txHash": "0x8129...",
+  "blockNumber": 12,
+  "timestamp": "2026-11-16T18:57:41.000Z"
+}
+```
 
 ---
 
@@ -174,7 +285,7 @@
 ### `GET /health`
 **File:** `server.js:10`  
 **Auth:** None  
-**Response:** `200 { ok: true }`
+**Response:** `200 { ok: true, demoAuth: boolean }`
 
 ---
 
