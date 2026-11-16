@@ -141,6 +141,7 @@ router.get("/records/mine", requireAuth("patient"), wrap(async (req, res) => {
       uploadedAt: new Date(Number(record.timestamp) * 1000).toISOString(),
       authorizedDoctors: await authorizedDoctors(id),
       cid: record.cid,
+      fileHash: record.fileHash,
     });
   }
   res.json(records);
