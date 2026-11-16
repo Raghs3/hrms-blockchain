@@ -160,6 +160,58 @@ function doctors(req, res) {
   return res.json({ doctors: list });
 }
 
+// ── Admin Doctor Approval / Rejection ─────────────────────────────────────────
+async function approveDoctor(idOrEmail) {
+  const clean = (idOrEmail || "").trim();
+  const account = store.findAccountById(clean) || store.findAccountByEmail(clean.toLowerCase());
+  if (!account) {
+    const err = new Error("Doctor account not found");
+    err.code = "DOCTOR_NOT_FOUND";
+    err.statusCode = 404;
+    throw err;
+  }
+  if (account.role !== "doctor") {
+    const err = new Error("Account is not a doctor");
+    err.code = "NOT_A_DOCTOR";
+    err.statusCode = 400;
+    throw err;
+  }
+  if (account.status === "approved") {
+    return { alreadyApproved: true, account };
+  }
+
+  // Register on-chain
+  const wallet = walletForAccount(account.id);
+  await ensureRegistered(wallet, "doctor");
+
+  // Update store
+  const updated = store.updateAccount(account.id, { status: "approved" });
+  store.setName(account.walletAddress, account.name);
+
+  return { alreadyApproved: false, account: updated };
+}
+
+async function rejectDoctor(idOrEmail) {
+  const clean = (idOrEmail || "").trim();
+  const account = store.findAccountById(clean) || store.findAccountByEmail(clean.toLowerCase());
+  if (!account) {
+    const err = new Error("Doctor account not found");
+    err.code = "DOCTOR_NOT_FOUND";
+    err.statusCode = 404;
+    throw err;
+  }
+  if (account.role !== "doctor") {
+    const err = new Error("Account is not a doctor");
+    err.code = "NOT_A_DOCTOR";
+    err.statusCode = 400;
+    throw err;
+  }
+
+  // Update store
+  const updated = store.updateAccount(account.id, { status: "rejected" });
+  return { account: updated };
+}
+
 // ── Middleware: requireAuth(...roles) ─────────────────────────────────────────
 // Works for both real accounts (sub present) and demo tokens (name present).
 function requireAuth(...allowedRoles) {
@@ -203,4 +255,15 @@ function requireAuth(...allowedRoles) {
   };
 }
 
-module.exports = { register, login, demoLogin, me, doctors, requireAuth, authLimiter };
+module.exports = {
+  register,
+  login,
+  demoLogin,
+  me,
+  doctors,
+  requireAuth,
+  authLimiter,
+  sanitizeUser,
+  approveDoctor,
+  rejectDoctor,
+};

@@ -2,7 +2,18 @@ const express = require("express");
 const multer = require("multer");
 const { ethers } = require("ethers");
 const { recordRegistry } = require("./chain");
-const { register, login, demoLogin, me, doctors, requireAuth, authLimiter } = require("./auth");
+const {
+  register,
+  login,
+  demoLogin,
+  me,
+  doctors,
+  requireAuth,
+  authLimiter,
+  sanitizeUser,
+  approveDoctor,
+  rejectDoctor,
+} = require("./auth");
 const { encrypt, decrypt, sha256Hex } = require("./crypto");
 const ipfs = require("./ipfs");
 const store = require("./store");
@@ -58,6 +69,42 @@ router.post("/auth/login", authLimiter, wrap(login));
 router.post("/auth/demo-login", authLimiter, wrap(demoLogin));
 router.get("/auth/me", requireAuth(), (req, res) => me(req, res));
 router.get("/doctors", requireAuth("patient", "doctor"), doctors);
+
+// ── Admin routes ─────────────────────────────────────────────────────────────
+router.get("/admin/pending-doctors", requireAuth("admin"), wrap(async (req, res) => {
+  const pending = store.listPendingDoctors().map(sanitizeUser);
+  res.json({ doctors: pending });
+}));
+
+router.post("/admin/doctors/:id/approve", requireAuth("admin"), wrap(async (req, res) => {
+  try {
+    const { account } = await approveDoctor(req.params.id);
+    res.json({ status: "approved", doctor: sanitizeUser(account) });
+  } catch (err) {
+    if (err.code === "DOCTOR_NOT_FOUND") {
+      return res.status(404).json({ error: "DOCTOR_NOT_FOUND", message: err.message });
+    }
+    if (err.code === "NOT_A_DOCTOR") {
+      return res.status(400).json({ error: "NOT_A_DOCTOR", message: err.message });
+    }
+    throw err;
+  }
+}));
+
+router.post("/admin/doctors/:id/reject", requireAuth("admin"), wrap(async (req, res) => {
+  try {
+    const { account } = await rejectDoctor(req.params.id);
+    res.json({ status: "rejected", doctor: sanitizeUser(account) });
+  } catch (err) {
+    if (err.code === "DOCTOR_NOT_FOUND") {
+      return res.status(404).json({ error: "DOCTOR_NOT_FOUND", message: err.message });
+    }
+    if (err.code === "NOT_A_DOCTOR") {
+      return res.status(400).json({ error: "NOT_A_DOCTOR", message: err.message });
+    }
+    throw err;
+  }
+}));
 
 router.post("/records/upload", requireAuth("patient"), upload.single("file"), wrap(async (req, res) => {
   if (!req.file) return res.status(400).json({ error: "FILE_REQUIRED" });
