@@ -5,6 +5,7 @@
   "main": "src/server.js",
   "scripts": {
     "start": "node src/server.js",
+    "test": "node --test test/**/*.test.js",
     "demo": "node scripts/demo-flow.js",
     "seed": "node scripts/seed.js",
     "approve-doctor": "node scripts/approve-doctor.js"

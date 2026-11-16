@@ -10,6 +10,10 @@ app.use(express.json());
 app.get("/health", (req, res) => res.json({ ok: true, demoAuth: Boolean(demoAuth) }));
 app.use(routes);
 
-app.listen(port, () => {
-  console.log(`Backend listening on http://localhost:${port} (file storage: ${usePinata ? "Pinata/IPFS" : "local stub"}) CORS origin: ${corsOrigin}`);
-});
+if (require.main === module) {
+  app.listen(port, () => {
+    console.log(`Backend listening on http://localhost:${port} (file storage: ${usePinata ? "Pinata/IPFS" : "local stub"}) CORS origin: ${corsOrigin}`);
+  });
+}
+
+module.exports = app;
