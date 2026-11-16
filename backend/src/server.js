@@ -1,13 +1,13 @@
 const express = require("express");
 const cors = require("cors");
-const { port, corsOrigin } = require("./config");
+const { port, corsOrigin, demoAuth } = require("./config");
 const routes = require("./routes");
 const { usePinata } = require("./ipfs");
 
 const app = express();
 app.use(cors({ origin: Array.from(new Set([corsOrigin, "http://localhost:5173", "http://127.0.0.1:5173"])), credentials: true }));
 app.use(express.json());
-app.get("/health", (req, res) => res.json({ ok: true }));
+app.get("/health", (req, res) => res.json({ ok: true, demoAuth: Boolean(demoAuth) }));
 app.use(routes);
 
 app.listen(port, () => {
