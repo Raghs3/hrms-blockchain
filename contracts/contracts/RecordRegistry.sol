@@ -22,21 +22,43 @@ contract RecordRegistry {
 
     // recordId => Record
     mapping(uint256 => Record) private records;
-    // recordId => doctor address => authorized?
-    mapping(uint256 => mapping(address => bool)) private authorizedAccess;
+    /// @dev A consent grant: who may read, until when, and why.
+    struct Grant {
+        bool active;
+        uint64 expiry; // unix seconds; 0 = no expiry (until revoked)
+        string purpose; // e.g. "second opinion"
+    }
+
+    uint256 public constant MAX_PURPOSE_LENGTH = 128;
+
+    // recordId => doctor address => consent grant
+    mapping(uint256 => mapping(address => Grant)) private grants;
     // patient address => list of record IDs they own (for listing "my records")
     mapping(address => uint256[]) private recordsByOwner;
 
     uint256 private nextRecordId = 1;
 
     event RecordAdded(uint256 indexed recordId, address indexed owner, string cid, bytes32 fileHash, uint256 timestamp);
-    event AccessGranted(uint256 indexed recordId, address indexed owner, address indexed doctor);
+    event AccessGranted(
+        uint256 indexed recordId,
+        address indexed owner,
+        address indexed doctor,
+        uint64 expiry,
+        string purpose
+    );
     event AccessRevoked(uint256 indexed recordId, address indexed owner, address indexed doctor);
+    /// @notice Proof that `accessor` was authorised and opened `recordId` at `timestamp`.
+    ///         Emitted by recordAccess(); the backend releases content only after this is mined.
+    event AccessReceipt(uint256 indexed recordId, address indexed owner, address indexed accessor, uint256 timestamp);
 
     error NotAPatient(address account);
     error NotADoctor(address account);
     error RecordDoesNotExist(uint256 recordId);
     error NotRecordOwner(uint256 recordId, address caller);
+    error AccessDenied(uint256 recordId, address caller);
+    error ExpiryInPast(uint64 expiry);
+    error PurposeRequired();
+    error PurposeTooLong(uint256 length);
 
     modifier onlyPatient() {
         if (!userRegistry.isPatient(msg.sender)) revert NotAPatient(msg.sender);
@@ -79,16 +101,25 @@ contract RecordRegistry {
         emit RecordAdded(recordId, msg.sender, cid, fileHash, block.timestamp);
     }
 
-    /// @notice Patient grants a doctor access to one of their records.
-    function grantAccess(uint256 recordId, address doctor)
+    /// @notice Patient grants a doctor access to one of their records, bound to a
+    ///         purpose and (optionally) an expiry. Re-granting replaces the previous
+    ///         grant (e.g. to extend it). `expiry` is a unix timestamp; pass 0 for
+    ///         "until revoked". Once the expiry passes, access ends on its own — no
+    ///         revoke transaction needed.
+    function grantAccess(uint256 recordId, address doctor, uint64 expiry, string calldata purpose)
         external
         onlyPatient
         recordExists(recordId)
         onlyRecordOwner(recordId)
     {
         if (!userRegistry.isDoctor(doctor)) revert NotADoctor(doctor);
-        authorizedAccess[recordId][doctor] = true;
-        emit AccessGranted(recordId, msg.sender, doctor);
+        if (expiry != 0 && expiry <= block.timestamp) revert ExpiryInPast(expiry);
+        uint256 len = bytes(purpose).length;
+        if (len == 0) revert PurposeRequired();
+        if (len > MAX_PURPOSE_LENGTH) revert PurposeTooLong(len);
+
+        grants[recordId][doctor] = Grant({active: true, expiry: expiry, purpose: purpose});
+        emit AccessGranted(recordId, msg.sender, doctor, expiry, purpose);
     }
 
     /// @notice Patient revokes a doctor's access to one of their records.
@@ -100,31 +131,61 @@ contract RecordRegistry {
         recordExists(recordId)
         onlyRecordOwner(recordId)
     {
-        authorizedAccess[recordId][doctor] = false;
+        delete grants[recordId][doctor];
         emit AccessRevoked(recordId, msg.sender, doctor);
     }
 
     /// @notice Returns whether `account` currently has access to `recordId`.
-    ///         The record owner always has access to their own record.
+    ///         The record owner always has access to their own record; a doctor
+    ///         has access only while a grant exists and has not expired.
     function checkAccess(address account, uint256 recordId) public view recordExists(recordId) returns (bool) {
-        if (records[recordId].owner == account) return true;
-        return authorizedAccess[recordId][account];
+        return _hasAccess(account, recordId);
+    }
+
+    /// @notice Returns the grant a doctor holds on a record (for the patient's UI).
+    ///         `active` is true only if the grant exists AND has not expired.
+    function getGrant(uint256 recordId, address doctor)
+        external
+        view
+        recordExists(recordId)
+        returns (bool active, uint64 expiry, string memory purpose)
+    {
+        Grant storage g = grants[recordId][doctor];
+        return (_grantLive(g), g.expiry, g.purpose);
+    }
+
+    /// @notice Logs that the caller is opening `recordId`. Reverts unless the caller
+    ///         is the owner or a doctor with a live grant. The backend calls this and
+    ///         waits for it to be mined BEFORE releasing any file content, so every
+    ///         release of a record is backed by an on-chain receipt.
+    function recordAccess(uint256 recordId) external recordExists(recordId) {
+        if (!_hasAccess(msg.sender, recordId)) revert AccessDenied(recordId, msg.sender);
+        emit AccessReceipt(recordId, records[recordId].owner, msg.sender, block.timestamp);
     }
 
     /// @notice Returns the record's pointer data, if the caller is authorized.
     ///         Reverts if the caller (owner or granted doctor) is not authorized —
     ///         this is the on-chain gate the backend must pass before it will
-    ///         fetch/decrypt the file from IPFS.
+    ///         fetch/decrypt the file from IPFS. (This is a free view call and leaves
+    ///         no trace; the receipted path is recordAccess().)
     function getRecord(uint256 recordId)
         external
         view
         recordExists(recordId)
         returns (address owner, string memory cid, bytes32 fileHash, uint256 timestamp)
     {
+        require(_hasAccess(msg.sender, recordId), "RecordRegistry: caller not authorized");
         Record storage r = records[recordId];
-        bool authorized = r.owner == msg.sender || authorizedAccess[recordId][msg.sender];
-        require(authorized, "RecordRegistry: caller not authorized");
         return (r.owner, r.cid, r.fileHash, r.timestamp);
+    }
+
+    function _grantLive(Grant storage g) private view returns (bool) {
+        return g.active && (g.expiry == 0 || block.timestamp < g.expiry);
+    }
+
+    function _hasAccess(address account, uint256 recordId) private view returns (bool) {
+        if (records[recordId].owner == account) return true;
+        return _grantLive(grants[recordId][account]);
     }
 
     /// @notice Lists the record IDs owned by `patient` (for the patient's own dashboard).

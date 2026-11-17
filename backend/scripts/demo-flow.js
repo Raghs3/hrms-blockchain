@@ -54,11 +54,16 @@ async function main() {
   r = await call("GET", `/records/${id}/view`, { token: doctor.token });
   check("   doctor view denied before grant", r.status === 403, r.body);
 
-  r = await call("POST", `/records/${id}/grant`, { token: patient.token, json: { doctorAddress: doctor.walletAddress } });
-  check("3. patient grants doctor access", r.body.status === "granted", r.body);
+  r = await call("POST", `/records/${id}/grant`, { token: patient.token, json: { doctorAddress: doctor.walletAddress, purpose: "second opinion", expiresAt: new Date(Date.now() + 3600_000).toISOString() } });
+  check("3. patient grants doctor access (purpose + 1h expiry)", r.body.status === "granted" && r.body.purpose === "second opinion", r.body);
 
   r = await call("GET", `/records/${id}/view`, { token: doctor.token });
   check("4. doctor views record, content decrypted intact", r.status === 200 && r.body.content === secret, r.body);
+  check("   the read came with a mined on-chain receipt", /^0x[0-9a-f]{64}$/.test(r.body.accessReceipt?.txHash || ""), r.body.accessReceipt);
+  const receiptTx = r.body.accessReceipt?.txHash;
+
+  r = await call("GET", `/access-receipts?recordId=${id}`, { token: patient.token });
+  check("   patient sees the doctor's read, same tx hash", r.body.receipts?.[0]?.txHash === receiptTx && r.body.receipts[0].accessor === doctor.walletAddress, r.body);
 
   r = await call("GET", "/records/mine", { token: patient.token });
   check("   patient's list shows the doctor as authorized", r.body.find((rec) => rec.recordId === id)?.authorizedDoctors?.[0]?.walletAddress === doctor.walletAddress, r.body);

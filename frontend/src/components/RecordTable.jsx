@@ -5,6 +5,7 @@ import EmptyState from './EmptyState';
 import GrantAccessModal from './GrantAccessModal';
 import RevokeAccessModal from './RevokeAccessModal';
 import ViewRecordModal from './ViewRecordModal';
+import { describeExpiry } from './consentFormat';
 
 function truncateHash(hash) {
   if (!hash) return '—';
@@ -312,6 +313,13 @@ export default function RecordTable({
                             <span className="doctor-chip" title={doc.walletAddress}>
                               {doc.name || `${doc.walletAddress.slice(0, 6)}...${doc.walletAddress.slice(-4)}`}
                             </span>
+                            {(doc.purpose || doc.expiresAt) && (
+                              <span style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>
+                                {doc.purpose}
+                                {doc.purpose ? ' · ' : ''}
+                                {describeExpiry(doc.expiresAt)}
+                              </span>
+                            )}
                             <RevokeAccessModal
                               record={record}
                               doctor={doc}

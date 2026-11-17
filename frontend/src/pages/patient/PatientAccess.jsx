@@ -3,6 +3,7 @@ import { Link, useSearchParams } from 'react-router-dom';
 import Layout from '../../components/Layout';
 import RecordTable from '../../components/RecordTable';
 import AuditTrail from '../../components/AuditTrail';
+import AccessReceipts from '../../components/AccessReceipts';
 import { useAuditTrail } from '../../context/AuditTrailContext';
 import { getMyRecords } from '../../api/records';
 import useDocumentTitle from '../../hooks/useDocumentTitle';
@@ -184,6 +185,11 @@ export default function PatientAccess() {
             onRetry={loadRecords}
           />
         </div>
+      </div>
+
+      {/* Who actually opened a record (on-chain receipts) */}
+      <div style={{ marginTop: '24px' }}>
+        <AccessReceipts viewer="patient" maxItems={10} refreshKey={records.length} />
       </div>
 
       {/* On-Chain Access Audit Trail */}

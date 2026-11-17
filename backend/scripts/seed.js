@@ -54,7 +54,17 @@ async function main() {
   for (const seed of SEEDS) {
     const existing = store.findAccountByEmail(seed.email);
     if (existing) {
-      console.log(`SKIP  ${seed.email} (already exists, id: ${existing.id})`);
+      // Self-heal: a store that outlived its chain (fresh `hardhat node` + deploy) still lists
+      // these accounts, but they are not registered on the new contracts. ensureRegistered is
+      // idempotent and also tops up gas for doctors (every read is a transaction).
+      const onChainExisting =
+        existing.role === "patient" || (existing.role === "doctor" && existing.status === "approved");
+      if (onChainExisting) {
+        const wallet = walletForAccount(existing.id);
+        await ensureRegistered(wallet, existing.role);
+        store.setName(wallet.address, existing.name);
+      }
+      console.log(`SKIP  ${seed.email} (already exists, id: ${existing.id}${onChainExisting ? "; on-chain registration verified" : ""})`);
       counts.skipped++;
       continue;
     }

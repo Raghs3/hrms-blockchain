@@ -245,6 +245,29 @@ export default function ViewRecordModal({ isOpen, onClose, record }) {
               )}
             </div>
 
+            {/* On-chain access receipt: proof this read was logged before content was released */}
+            {recordData.accessReceipt?.txHash && (
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  flexWrap: 'wrap',
+                  padding: '8px 14px',
+                  backgroundColor: 'var(--color-accent-subtle)',
+                  borderRadius: 'var(--radius-sm)',
+                  fontSize: '0.75rem',
+                  marginBottom: '14px',
+                }}
+                id="access-receipt-line"
+              >
+                <strong>This read was logged on the blockchain</strong>
+                <span style={{ fontFamily: 'ui-monospace, monospace' }} title={recordData.accessReceipt.txHash}>
+                  receipt {truncateMiddle(recordData.accessReceipt.txHash, 10, 8)} (block {recordData.accessReceipt.blockNumber})
+                </span>
+              </div>
+            )}
+
             {/* Cryptographic Integrity Callout */}
             <div
               style={{

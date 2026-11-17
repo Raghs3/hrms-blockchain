@@ -214,23 +214,29 @@
 
 | Scenario | Status | Response |
 |---|---|---|
-| Success | 200 | `[{ recordId: string, owner: string, ownerName: string, label: string, uploadedAt: string, cid: string, fileHash: string, mimeType: string, originalFileName: string|null, sizeBytes: number|null }]` |
+| Success | 200 | `[{ recordId: string, owner: string, ownerName: string, purpose: string|null, expiresAt: string|null, label: string, uploadedAt: string, cid: string, fileHash: string, mimeType: string, originalFileName: string|null, sizeBytes: number|null }]` |
 | Unauthenticated | 401 | `{ error: "INVALID_TOKEN" }` |
 | Wrong role (patient/admin) | 403 | `{ error: "WRONG_ROLE" }` |
 | RPC failure | 503 | `{ error: "RPC_ERROR", message: string }` |
 
-*Reconstructs active doctor authorizations from `AccessGranted` event logs filtered and confirmed against smart contract `checkAccess`.*
+*Reconstructs active doctor authorizations from `AccessGranted` event logs, each confirmed against the contract's `getGrant` (so expired and revoked grants drop out). `purpose` / `expiresAt` describe the grant (`expiresAt: null` = until revoked).*
 
 ---
 
 ### `POST /records/:id/grant`
 **File:** `routes.js:203`  
 **Auth:** patient only  
-**Body:** `{ doctorAddress: string (wallet address) }`
+**Body:** `{ doctorAddress: string (wallet address), purpose?: string (max 128 bytes, default "General care"), expiresAt?: ISO date string | null (null/omitted = until revoked) }`
+
+Access ends on its own at `expiresAt`; no revoke is needed. Granting again replaces the previous grant (use it to extend an expired one).
 
 | Scenario | Status | Response |
 |---|---|---|
-| Success | 200 | `{ txHash, status: "granted" }` |
+| Success | 200 | `{ txHash, status: "granted", purpose: string, expiresAt: string|null }` |
+| `expiresAt` not a date | 400 | `{ error: "INVALID_EXPIRY" }` |
+| `expiresAt` already past (chain time) | 400 | `{ error: "EXPIRY_IN_PAST" }` |
+| `purpose` empty / not a string | 400 | `{ error: "PURPOSE_REQUIRED" }` |
+| `purpose` over 128 bytes | 400 | `{ error: "PURPOSE_TOO_LONG" }` |
 | Not record owner | 403 | `{ error: "NOT_RECORD_OWNER" }` |
 | Record not found | 404 | `{ error: "RECORD_NOT_FOUND" }` |
 | Invalid address | 400 | `{ error: "INVALID_ADDRESS" }` |
@@ -269,15 +275,38 @@
 
 | Scenario | Status | Response |
 |---|---|---|
-| Success | 200 | `{ recordId, owner, label, fileHash, cid, content: string, encoding: "utf8"|"base64", mimeType: string, originalFileName: string|null, sizeBytes: number|null }` |
-| Access denied by contract | 403 | `{ error: "ACCESS_DENIED" }` |
+| Success | 200 | `{ recordId, owner, label, fileHash, cid, content: string, encoding: "utf8"|"base64", mimeType: string, originalFileName: string|null, sizeBytes: number|null, accessReceipt: { txHash: string, blockNumber: number, timestamp: string|null } }` |
+| Access denied by contract (no grant, revoked or expired) | 403 | `{ error: "ACCESS_DENIED" }` |
 | Record not found | 404 | `{ error: "RECORD_NOT_FOUND" }` |
 | Integrity check failed | 500 | `{ error: "INTEGRITY_CHECK_FAILED" }` |
+
+*Log-before-release:* after the contract's `getRecord` check and the integrity check, the backend sends a `recordAccess(recordId)` transaction from the caller's wallet and waits for it to be mined. Only then is content returned; `accessReceipt` is that transaction. A denied request writes nothing and costs no gas. Every successful view (including the owner's) adds one `AccessReceipt` event. Doctor wallets are funded by the admin account (like patients) because each read is a transaction.
 
 *Encoding & Content behavior:*
 - For `text/plain` records: `content` is a standard UTF-8 string, `encoding: "utf8"`.
 - For binary formats (`pdf`, `png`, `jpg`, `doc`, `docx`): `content` is base64 encoded, `encoding: "base64"`.
 - On-chain integrity: The server validates SHA-256 hash against `record.fileHash` on raw decrypted bytes before returning. The browser also validates SHA-256 over raw bytes (decoded from base64 or encoded from text).
+
+---
+
+## Access Receipts
+
+### `GET /access-receipts`
+**Auth:** any authenticated user  
+**Query Params:** `recordId` (optional filter), `limit` (default 50, max 100), `offset` (default 0)
+
+Who actually opened what: one row per on-chain `AccessReceipt`.
+- **Patient:** reads of their own records, by anyone (their own views have `selfAccess: true`).
+- **Doctor:** their own reads.
+- **Admin:** all receipts.
+
+| Scenario | Status | Response |
+|---|---|---|
+| Success | 200 | `{ total, limit, offset, receipts: [{ recordId, label, owner, ownerName, accessor, accessorName, selfAccess: boolean, timestamp, txHash, blockNumber }] }` (newest first) |
+| Unauthenticated | 401 | `{ error: "INVALID_TOKEN" }` |
+| RPC failure | 503 | `{ error: "RPC_ERROR", message: string }` |
+
+Receipts are deliberately not mixed into `/audit-trail` yet (the frontend audit component would need to render a new event type first).
 
 ---
 
@@ -301,7 +330,7 @@
 | Unauthenticated | 401 | `{ error: "INVALID_TOKEN" }` |
 | RPC failure | 503 | `{ error: "RPC_ERROR", message: string }` |
 
-**AuditEvent shape:**
+**AuditEvent shape** (`purpose` / `expiresAt` are only set on `AccessGranted`):
 ```json
 {
   "type": "RECORD_ADDED" | "ACCESS_GRANTED" | "ACCESS_REVOKED",
@@ -312,6 +341,8 @@
   "ownerName": "Riya Sharma",
   "doctor": "0x37f0...",
   "doctorName": "Dr. Kapoor",
+  "purpose": "second opinion" | null,
+  "expiresAt": "2026-11-18T10:00:00.000Z" | null,
   "cid": "bafy...",
   "fileHash": "0x560f...",
   "mimeType": "application/pdf" | "text/plain" | null,

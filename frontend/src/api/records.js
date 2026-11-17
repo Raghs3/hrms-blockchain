@@ -41,12 +41,32 @@ export async function uploadRecord(formData) {
  * POST /records/:id/grant
  * @param {string} recordId
  * @param {string} doctorAddress - Doctor's wallet address
+ * @param {{ purpose?: string, expiresAt?: string|null }} [terms] - Why access is granted, and when it
+ *   ends on its own (ISO date; null/omitted = until revoked). The contract enforces both.
  */
-export async function grantAccess(recordId, doctorAddress) {
+export async function grantAccess(recordId, doctorAddress, terms = {}) {
   if (USE_MOCK) {
     return mockGrantAccess(recordId, doctorAddress);
   }
-  const response = await api.post(`/records/${recordId}/grant`, { doctorAddress });
+  const response = await api.post(`/records/${recordId}/grant`, {
+    doctorAddress,
+    purpose: terms.purpose,
+    expiresAt: terms.expiresAt ?? null,
+  });
+  return response.data;
+}
+
+/**
+ * GET /access-receipts
+ * On-chain receipts of who actually opened which record (patient: reads of own records;
+ * doctor: own reads). { total, limit, offset, receipts: [{ recordId, label, ownerName,
+ * accessor, accessorName, selfAccess, timestamp, txHash, blockNumber }] }
+ */
+export async function getAccessReceipts({ recordId, limit = 10, offset = 0 } = {}) {
+  if (USE_MOCK) {
+    return { total: 0, limit, offset, receipts: [] };
+  }
+  const response = await api.get('/access-receipts', { params: { recordId, limit, offset } });
   return response.data;
 }
 
