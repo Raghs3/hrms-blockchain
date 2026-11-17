@@ -1,18 +1,66 @@
 import api from './axios';
-import { mockLogin } from './mock';
-
-const USE_MOCK = import.meta.env.VITE_USE_MOCK !== 'false';
 
 /**
+ * Log in to the system with email and password.
  * POST /auth/login
- * @param {string} name - User's full name
- * @param {string} role - 'patient' | 'doctor'
- * @returns {{ token, role, walletAddress, userId, name }}
+ *
+ * @param {{ email: string, password: string } | string} credentialsOrEmail
+ * @param {string} [password]
+ * @returns {Promise<{ token: string, user: object }>}
  */
-export async function login(name, role) {
-  if (USE_MOCK) {
-    return mockLogin(name, role);
-  }
-  const response = await api.post('/auth/login', { name, role });
+export async function login(credentialsOrEmail, password) {
+  const payload =
+    typeof credentialsOrEmail === 'object' && credentialsOrEmail !== null
+      ? credentialsOrEmail
+      : { email: credentialsOrEmail, password };
+
+  const response = await api.post('/auth/login', payload);
   return response.data;
 }
+
+/**
+ * Register a new account.
+ * POST /auth/register
+ *
+ * @param {{ name: string, email: string, password: string, role: 'patient' | 'doctor' }} data
+ * @returns {Promise<{ token?: string, user: object }>}
+ */
+export async function register(data) {
+  const response = await api.post('/auth/register', data);
+  return response.data;
+}
+
+/**
+ * Get the currently authenticated user profile.
+ * GET /auth/me
+ *
+ * @returns {Promise<{ user: object }>}
+ */
+export async function getMe() {
+  const response = await api.get('/auth/me');
+  return response.data;
+}
+
+/**
+ * List approved doctors.
+ * GET /doctors
+ *
+ * @returns {Promise<{ doctors: Array<{ name: string, walletAddress: string }> }>}
+ */
+export async function getDoctors() {
+  const response = await api.get('/doctors');
+  return response.data;
+}
+
+/**
+ * Persona quick-login via demo mode (when server has demoAuth enabled).
+ * POST /auth/demo-login
+ *
+ * @param {{ name: string, role: 'patient' | 'doctor' }} data
+ * @returns {Promise<{ token: string, role: string, walletAddress: string, userId: string, name: string }>}
+ */
+export async function demoLogin(data) {
+  const response = await api.post('/auth/demo-login', data);
+  return response.data;
+}
+

@@ -44,8 +44,9 @@ npx hardhat run scripts/deploy.js --network localhost
 ```bash
 cd backend
 npm install
-cp .env.example .env      # fill in contract addresses, Pinata keys, etc.
-npm run dev
+cp .env.example .env      # fill in contract addresses, secrets, Pinata key (see table below)
+npm run seed              # once per fresh chain: creates the demo admin, doctor and patient
+npm start
 ```
 
 #### Setting up a Pinata account (IPFS pinning)
@@ -70,10 +71,24 @@ If `PINATA_JWT` is left empty, the backend falls back to storing files in a loca
 | `USER_REGISTRY_ADDRESS` / `RECORD_REGISTRY_ADDRESS` | Printed by `npx hardhat run scripts/deploy.js --network localhost` in `contracts/` — redeploy and re-copy these any time you restart the Hardhat node. |
 | `ADMIN_PRIVATE_KEY` | Hardhat account #0's key, printed by `npx hardhat node` (already filled in `.env.example` — it's a well-known test key, never use it outside a local chain). |
 | `JWT_SECRET` | Any long random string, e.g. `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"`. |
+| `WALLET_SECRET` | Another random string; every user's wallet is derived from it, so don't rotate it once accounts exist. |
 | `ENCRYPTION_KEY` | 32 random bytes as hex: `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"`. |
 | `PINATA_JWT` / `PINATA_GATEWAY` | From the Pinata setup above. |
+| `DEMO_AUTH` / `CORS_ORIGIN` / `AUTH_RATE_LIMIT_MAX` | Optional. `DEMO_AUTH=true` re-enables the legacy name+role login and the login-page quick-fill buttons. Defaults are fine otherwise. |
 
-Keep `contracts/`, `backend/`, and `frontend/` running in separate terminals (`npx hardhat node`, backend `npm run dev`, frontend `npm run dev`) — the backend and frontend both depend on the local chain staying up.
+#### Demo accounts (created by `npm run seed`)
+
+One password per role: admin `Admin1234!`, doctors `Doctor1234!`, patients `Patient1234!`. The seed creates 1 admin, 4 patients and 6 doctors (3 approved, 2 pending, 1 rejected); the full list is in `backend/README.md`. The main logins are:
+
+| Role | Email | Password |
+| --- | --- | --- |
+| Admin | `admin@demo.local` | `Admin1234!` |
+| Doctor (approved) | `doctor@demo.local` | `Doctor1234!` |
+| Patient | `patient@demo.local` | `Patient1234!` |
+
+These are local test credentials only. New doctors who register stay "pending" until the admin approves them (Approve button on `/admin`). `npm run demo` runs the full upload -> grant -> view -> revoke -> deny flow against a running backend; `npm test` runs the backend test suite.
+
+Keep `contracts/`, `backend/`, and `frontend/` running in separate terminals (`npx hardhat node`, backend `npm start`, frontend `npm run dev`) — the backend and frontend both depend on the local chain staying up.
 
 ### Frontend
 
@@ -83,13 +98,16 @@ npm install
 npm run dev
 ```
 
-Set `VITE_API_BASE_URL` in `frontend/.env.local` to point at the backend (or a mock server while the backend is still in progress).
+The app talks to the backend at `http://localhost:4000` by default. To change that, copy `frontend/.env.example` to `frontend/.env.local` and set `VITE_API_BASE_URL` (set `VITE_USE_MOCK=true` only for standalone mock mode).
 
 ## Docs
 
 - `docs/PRD.md` — requirements, scope, success criteria for the midsem demo
 - `docs/architecture.md` — full technical architecture, build order, and API contract
-- API contract for the frontend — also see the shared frontend brief (linked in the team chat)
+- `docs/API_CONTRACT.md`, `docs/AUTH_CONTRACT.md` — current backend API and auth contract
+- `docs/RUNBOOK.md` — start-up, smoke tests, troubleshooting
+- `docs/LIMITATIONS.md` — architectural trade-offs (useful for the paper)
+- `backend/README.md` — backend setup, env table, clean-reset procedure
 
 ## Branching
 

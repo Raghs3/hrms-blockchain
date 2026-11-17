@@ -1,55 +1,74 @@
-import { createContext, useContext, useState, useEffect } from 'react';
+import { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import { getMe } from '../api/auth';
 
 const AuthContext = createContext(null);
 
-const STORAGE_KEY = 'hrms_auth';
+const TOKEN_KEY = 'hrms_token';
 
 /**
  * AuthProvider wraps the app and provides authentication state.
- * State is persisted in localStorage so refreshing the page
- * keeps the user logged in.
+ * States:
+ *   - 'loading': Verifying token with GET /auth/me on startup
+ *   - 'authenticated': Token verified, user profile populated
+ *   - 'unauthenticated': No token or verification failed
  */
 export function AuthProvider({ children }) {
-  const [authState, setAuthState] = useState(() => {
-    try {
-      const stored = localStorage.getItem(STORAGE_KEY);
-      return stored ? JSON.parse(stored) : null;
-    } catch {
-      return null;
-    }
+  const [status, setStatus] = useState(() => {
+    return localStorage.getItem(TOKEN_KEY) ? 'loading' : 'unauthenticated';
   });
+  const [user, setUser] = useState(null);
 
-  // Keep the token in sync so the Axios interceptor can read it
+  // Restore token on startup and verify via /auth/me
   useEffect(() => {
-    if (authState?.token) {
-      localStorage.setItem('hrms_token', authState.token);
-    } else {
-      localStorage.removeItem('hrms_token');
-    }
-  }, [authState?.token]);
+    const token = localStorage.getItem(TOKEN_KEY);
+    if (!token) return;
 
-  function loginUser(userData) {
-    const state = {
-      token: userData.token,
-      role: userData.role,
-      walletAddress: userData.walletAddress,
-      userId: userData.userId,
-      name: userData.name,
+    let isMounted = true;
+    getMe()
+      .then((data) => {
+        if (!isMounted) return;
+        setUser(data.user);
+        setStatus('authenticated');
+      })
+      .catch(() => {
+        if (!isMounted) return;
+        localStorage.removeItem(TOKEN_KEY);
+        localStorage.removeItem('hrms_auth');
+        setUser(null);
+        setStatus('unauthenticated');
+      });
+
+    return () => {
+      isMounted = false;
     };
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-    localStorage.setItem('hrms_token', userData.token);
-    setAuthState(state);
-  }
+  }, []);
 
-  function logoutUser() {
-    localStorage.removeItem(STORAGE_KEY);
-    localStorage.removeItem('hrms_token');
-    setAuthState(null);
-  }
+  const loginUser = useCallback((authData) => {
+    if (authData.token) {
+      localStorage.setItem(TOKEN_KEY, authData.token);
+    }
+    const userData = authData.user || authData;
+    setUser(userData);
+    setStatus('authenticated');
+  }, []);
+
+  const logoutUser = useCallback(() => {
+    localStorage.removeItem(TOKEN_KEY);
+    localStorage.removeItem('hrms_auth');
+    setUser(null);
+    setStatus('unauthenticated');
+  }, []);
 
   const value = {
-    ...authState,
-    isAuthenticated: !!authState?.token,
+    status,
+    isLoading: status === 'loading',
+    isAuthenticated: status === 'authenticated',
+    user,
+    role: user?.role || null,
+    walletAddress: user?.walletAddress || '',
+    name: user?.name || '',
+    email: user?.email || '',
+    userId: user?.id || user?.userId || null,
     loginUser,
     logoutUser,
   };
@@ -64,3 +83,4 @@ export function useAuth() {
   }
   return context;
 }
+

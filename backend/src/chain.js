@@ -1,4 +1,5 @@
 const path = require("path");
+const crypto = require("crypto");
 const { ethers } = require("ethers");
 const cfg = require("./config");
 
@@ -22,9 +23,36 @@ function runAsAdmin(task) {
   return result;
 }
 
-// Demo simplification: the backend holds each user's wallet. The key is derived
-// deterministically from name + role, so the same login always maps to the same address.
+// Same idea per user wallet: two simultaneous requests from one patient (parallel
+// uploads, a double-clicked Grant) must not send transactions with the same nonce.
+// Different wallets still run in parallel.
+const walletQueues = new Map();
+function runAsWallet(wallet, task) {
+  const key = wallet.address;
+  const result = (walletQueues.get(key) || Promise.resolve()).then(task);
+  const tail = result.catch(() => {});
+  walletQueues.set(key, tail);
+  tail.then(() => {
+    if (walletQueues.get(key) === tail) walletQueues.delete(key);
+  });
+  return result;
+}
+
+// Real-auth: derive wallet from WALLET_SECRET + accountId using HMAC-SHA256.
+// No private keys stored; same accountId always yields the same wallet.
+function walletForAccount(accountId) {
+  const hmac = crypto.createHmac("sha256", cfg.walletSecret);
+  hmac.update(String(accountId));
+  const keyHex = "0x" + hmac.digest("hex");
+  return new ethers.Wallet(keyHex, provider);
+}
+
+// Demo simplification (DEMO_AUTH=true only): the backend holds each user's wallet.
+// The key is derived deterministically from name + role.
 function walletFor(name, role) {
+  if (!cfg.demoAuth) {
+    throw new Error("walletFor() called but DEMO_AUTH is not enabled");
+  }
   const seed = `${cfg.jwtSecret}|${role}|${name.trim().toLowerCase()}`;
   return new ethers.Wallet(ethers.keccak256(ethers.toUtf8Bytes(seed)), provider);
 }
@@ -42,15 +70,21 @@ function ensureRegistered(wallet, role) {
   return registrations.get(key);
 }
 
+// Every user needs gas: patients send addRecord/grant/revoke, and doctors now send a
+// recordAccess transaction for every read (log-before-release). Runs for already
+// registered users too, so doctors that predate receipts get topped up at next login.
+async function ensureFunded(wallet) {
+  if ((await provider.getBalance(wallet.address)) >= MIN_BALANCE) return;
+  await runAsAdmin(async () => {
+    const tx = await admin.sendTransaction({ to: wallet.address, value: ethers.parseEther("1") });
+    await tx.wait();
+  });
+}
+
 async function register(wallet, role) {
+  await ensureFunded(wallet);
   if (role === "patient") {
     if (await userRegistry.isPatient(wallet.address)) return;
-    if ((await provider.getBalance(wallet.address)) < MIN_BALANCE) {
-      await runAsAdmin(async () => {
-        const tx = await admin.sendTransaction({ to: wallet.address, value: ethers.parseEther("1") });
-        await tx.wait();
-      });
-    }
     await (await userRegistry.connect(wallet).registerAsPatient()).wait();
   } else {
     if (await userRegistry.isDoctor(wallet.address)) return;
@@ -60,4 +94,4 @@ async function register(wallet, role) {
   }
 }
 
-module.exports = { provider, userRegistry, recordRegistry, walletFor, ensureRegistered };
+module.exports = { provider, userRegistry, recordRegistry, walletFor, walletForAccount, ensureRegistered, ensureFunded, runAsWallet };

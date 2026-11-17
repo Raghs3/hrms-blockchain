@@ -7,7 +7,9 @@ Stack decision: Ethereum (Solidity + Hardhat/Ganache local network). Target: end
 1. **Blockchain layer (Solidity, local Hardhat network)**
    - `UserRegistry.sol` — maps wallet addresses to roles (Patient, Doctor, Hospital Admin). Use OpenZeppelin `AccessControl` for role management.
    - `RecordRegistry.sol` — for each medical record: owner (patient address), IPFS CID, file hash (SHA-256), timestamp, list of addresses currently authorized to access it. Emits events (`RecordAdded`, `AccessGranted`, `AccessRevoked`) for the audit trail — this event log is your "immutability" selling point in the demo.
-   - Consent functions: `grantAccess(doctorAddress, recordId)`, `revokeAccess(doctorAddress, recordId)`, `checkAccess(address, recordId)`. All access checks happen on-chain so no one can bypass consent from the backend.
+   - Consent functions: `grantAccess(recordId, doctor, expiry, purpose)`, `revokeAccess(recordId, doctor)`, `checkAccess(address, recordId)`, `getGrant(recordId, doctor)`. All access checks happen on-chain so no one can bypass consent from the backend.
+   - **Consent lifecycle (project contribution).** A grant carries a *purpose* (required, max 128 bytes, e.g. "second opinion") and an *expiry* (unix seconds; 0 = until revoked). Access ends on its own once the expiry passes, with no revoke transaction. Every read is *receipted*: `recordAccess(recordId)` (owner or doctor with a live grant only) emits `AccessReceipt(recordId, owner, accessor, timestamp)`. The backend must wait for that transaction to be mined **before** releasing any file content (log-before-release), so no release is ever unlogged. Receipts are indexed by owner, so a patient's "who opened my records" view is one event-log filter.
+   - Honest scope of the guarantee: `getRecord` stays a free view call (it returns only the encrypted CID and hash). The receipt gate is enforced by the backend, which holds the decryption key; a doctor who calls the chain directly learns the ciphertext pointer but not the plaintext.
 
 2. **Off-chain file storage (IPFS)**
    - Blockchain never stores the actual file (too expensive/slow) — only the hash + CID pointer.
@@ -59,12 +61,16 @@ Stack decision: Ethereum (Solidity + Hardhat/Ganache local network). Target: end
 
 ## API contract (frontend <-> backend)
 
-See the shared frontend brief for the full contract with request/response bodies. Summary of endpoints:
+The authoritative contract is `docs/API_CONTRACT.md` (auth: `docs/AUTH_CONTRACT.md`). Summary of endpoints:
 
-- `POST /auth/login`
-- `POST /records/upload` (patient)
+- `POST /auth/register`, `POST /auth/login` (email + password), `GET /auth/me`
+- `GET /doctors` (approved doctors, for the grant dropdown)
+- `POST /records/upload` (patient; PDF, PNG, JPG, DOC, DOCX or TXT, max 10 MB)
 - `GET /records/mine` (patient)
-- `POST /records/:id/grant` (patient)
-- `POST /records/:id/revoke` (patient)
-- `GET /records/:id/access-check` (doctor)
-- `GET /records/:id/view` (doctor, if authorized)
+- `POST /records/:id/grant`, `POST /records/:id/revoke` (patient)
+- `GET /records/:id/access-check` (patient or doctor)
+- `GET /records/:id/view` (doctor, if authorized on-chain; text as UTF-8, binary as base64)
+- `GET /records/shared-with-me` (doctor)
+- `GET /audit-trail` (role-scoped on-chain events)
+- `GET /admin/pending-doctors`, `POST /admin/doctors/:id/approve|reject` (admin)
+- `GET /health`
