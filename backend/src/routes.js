@@ -1,7 +1,7 @@
 const express = require("express");
 const multer = require("multer");
 const { ethers } = require("ethers");
-const { provider, recordRegistry } = require("./chain");
+const { provider, recordRegistry, runAsWallet } = require("./chain");
 const {
   register,
   login,
@@ -20,7 +20,13 @@ const ipfs = require("./ipfs");
 const store = require("./store");
 
 const router = express.Router();
-const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
+// defParamCharset: multer decodes multipart filenames as latin1 by default, which turns
+// "रिपोर्ट.pdf" or "café.pdf" into mojibake. Browsers send filenames as UTF-8.
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 10 * 1024 * 1024 },
+  defParamCharset: "utf8",
+});
 
 const wrap = (fn) => (req, res, next) => fn(req, res, next).catch(next);
 
@@ -31,9 +37,24 @@ const CONTRACT_ERRORS = {
   RecordDoesNotExist: [404, "RECORD_NOT_FOUND"],
 };
 
+// ethers decodes custom errors for read calls (err.revert) but not for transactions:
+// there the node's revert data only shows up as err.data, so decode it ourselves.
+function revertName(err) {
+  if (err?.revert?.name) return err.revert.name;
+  const data = [err?.data, err?.info?.error?.data, err?.error?.data].find(
+    (d) => typeof d === "string" && d.startsWith("0x") && d.length >= 10
+  );
+  if (!data) return null;
+  try {
+    return recordRegistry.interface.parseError(data)?.name ?? null;
+  } catch {
+    return null;
+  }
+}
+
 function contractFailure(err) {
   if (err?.reason === "RecordRegistry: caller not authorized") return [403, "ACCESS_DENIED"];
-  return CONTRACT_ERRORS[err?.revert?.name] || null;
+  return CONTRACT_ERRORS[revertName(err)] || null;
 }
 
 function parseRecordId(req, res, next) {
@@ -121,8 +142,10 @@ router.post("/records/upload", requireAuth("patient"), upload.single("file"), wr
   const fileHash = sha256Hex(plaintext);
   const cid = await ipfs.pin(encrypt(plaintext), originalFileName);
 
-  const tx = await recordRegistry.connect(req.wallet).addRecord(cid, fileHash);
-  const receipt = await tx.wait();
+  const { tx, receipt } = await runAsWallet(req.wallet, async () => {
+    const sent = await recordRegistry.connect(req.wallet).addRecord(cid, fileHash);
+    return { tx: sent, receipt: await sent.wait() };
+  });
   const added = receipt.logs
     .map((log) => recordRegistry.interface.parseLog(log))
     .find((parsed) => parsed?.name === "RecordAdded");
@@ -208,14 +231,20 @@ router.get("/records/shared-with-me", requireAuth("doctor"), wrap(async (req, re
 }));
 
 router.post("/records/:id/grant", requireAuth("patient"), parseRecordId, requireDoctorAddress, wrap(async (req, res) => {
-  const tx = await recordRegistry.connect(req.wallet).grantAccess(req.recordId, req.doctorAddress);
-  await tx.wait();
+  const tx = await runAsWallet(req.wallet, async () => {
+    const sent = await recordRegistry.connect(req.wallet).grantAccess(req.recordId, req.doctorAddress);
+    await sent.wait();
+    return sent;
+  });
   res.json({ txHash: tx.hash, status: "granted" });
 }));
 
 router.post("/records/:id/revoke", requireAuth("patient"), parseRecordId, requireDoctorAddress, wrap(async (req, res) => {
-  const tx = await recordRegistry.connect(req.wallet).revokeAccess(req.recordId, req.doctorAddress);
-  await tx.wait();
+  const tx = await runAsWallet(req.wallet, async () => {
+    const sent = await recordRegistry.connect(req.wallet).revokeAccess(req.recordId, req.doctorAddress);
+    await sent.wait();
+    return sent;
+  });
   res.json({ txHash: tx.hash, status: "revoked" });
 }));
 
@@ -224,7 +253,7 @@ router.get("/records/:id/access-check", requireAuth(), parseRecordId, wrap(async
     const authorized = await recordRegistry.checkAccess(req.wallet.address, req.recordId);
     res.json({ authorized });
   } catch (err) {
-    if (err?.revert?.name === "RecordDoesNotExist") return res.json({ authorized: false });
+    if (revertName(err) === "RecordDoesNotExist") return res.json({ authorized: false });
     throw err;
   }
 }));
