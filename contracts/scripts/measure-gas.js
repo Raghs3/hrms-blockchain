@@ -29,13 +29,15 @@ async function main() {
   const hash = ethers.sha256(ethers.toUtf8Bytes("sample record"));
   out.tx.addRecord = Number(await gas(rr.connect(patient).addRecord(cid, hash)));
 
-  out.tx.grantAccess_first = Number(await gas(rr.connect(patient).grantAccess(1, doctors[0].address)));
+  out.tx.grantAccess_first = Number(await gas(rr.connect(patient).grantAccess(1, doctors[0].address, 0, "Second opinion")));
   out.tx.revokeAccess = Number(await gas(rr.connect(patient).revokeAccess(1, doctors[0].address)));
-  out.tx.grantAccess_regrant = Number(await gas(rr.connect(patient).grantAccess(1, doctors[0].address)));
+  out.tx.grantAccess_regrant = Number(await gas(rr.connect(patient).grantAccess(1, doctors[0].address, 0, "Second opinion")));
 
+  // Receipt (log-before-release) cost: patient is owner; a doctor with a live grant.
+  out.tx.recordAccess_doctor = Number(await gas(rr.connect(doctors[0]).recordAccess(1)));
   // Scaling: gas of the k-th grant on one record (shows O(1) per grant).
   for (let k = 1; k < doctors.length; k++) {
-    out.scaling.push({ authorizedDoctors: k + 1, grantGas: Number(await gas(rr.connect(patient).grantAccess(1, doctors[k].address))) });
+    out.scaling.push({ authorizedDoctors: k + 1, grantGas: Number(await gas(rr.connect(patient).grantAccess(1, doctors[k].address, 0, "Second opinion"))) });
   }
   // Scaling: addRecord gas as the patient's record list grows.
   out.recordGrowth = [];
@@ -49,6 +51,7 @@ async function main() {
   out.readLatencyMs.checkAccess = await time(() => rr.checkAccess(doctors[0].address, 1));
   out.readLatencyMs.getRecord_authorized = await time(() => rr.connect(doctors[0]).getRecord(1));
   out.readLatencyMs.getRecordsByOwner = await time(() => rr.getRecordsByOwner(patient.address));
+  out.readLatencyMs.getGrant = await time(() => rr.getGrant(1, doctors[0].address));
   // Denied path
   await rr.connect(patient).revokeAccess(1, doctors[0].address);
   out.readLatencyMs.getRecord_denied = await time(async () => { try { await rr.connect(doctors[0]).getRecord(1); } catch (_) {} });

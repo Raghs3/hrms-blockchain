@@ -21,10 +21,13 @@
 \caption{Gas Consumption per Contract Operation}\label{fig:gas}\end{figure}
 
 \begin{figure}[htbp]\centerline{\includegraphics[width=0.95\linewidth]{figures/fig7_scaling.png}}
-\caption{Gas Scalability of addRecord and grantAccess}\label{fig:scaling}\end{figure}
+\caption{Gas vs. Purpose Length for grantAccess}\label{fig:scaling}\end{figure}
 
 \begin{figure}[htbp]\centerline{\includegraphics[width=0.95\linewidth]{figures/fig8_latency.png}}
-\caption{Read-path Latency of Contract Calls}\label{fig:latency}\end{figure}
+\caption{Read-path Latency of Contract View Calls}\label{fig:latency}\end{figure}
+
+egin{figure}[htbp]\centerline{\includegraphics[width=0.95\linewidth]{figures/fig9_read_latency.png}}
+\caption{Read Latency With and Without On-chain Receipts}\label{fig:receiptlat}\end{figure}
 
 \begin{table}[htbp]
 \caption{Measured Gas Cost per Operation (Hardhat, solc 0.8.24, optimizer 200 runs)}
@@ -32,13 +35,14 @@
 \begin{tabular}{|l|r|l|}
 \hline \textbf{Operation} & \textbf{Gas} & \textbf{Caller} \ \hline
 Deploy UserRegistry & 512,511 & Admin \ \hline
-Deploy RecordRegistry & 835,688 & Admin \ \hline
+Deploy RecordRegistry & 1,124,686 & Admin \ \hline
 registerAsPatient & 47,036 & Patient \ \hline
 registerDoctor & 49,965 & Hospital admin \ \hline
-addRecord (first record) & 237,548 & Patient \ \hline
-addRecord (subsequent) & 220,448 & Patient \ \hline
-grantAccess & 59,276 & Patient (owner) \ \hline
-revokeAccess & 34,298 & Patient (owner) \ \hline
+addRecord (first record) & 237,679 & Patient \ \hline
+grantAccess (short purpose, no expiry) & 84,622 & Patient (owner) \ \hline
+grantAccess (128-byte purpose) & 176,045 & Patient (owner) \ \hline
+revokeAccess & 35,441 & Patient (owner) \ \hline
+recordAccess (receipt) & 30,871 & Doctor / owner \ \hline
 \end{tabular}\end{table}
 
 \begin{table}[htbp]
@@ -62,3 +66,38 @@ Instant revocation enforced by contract & \checkmark & $\times$ & \checkmark \ \
 Large files supported cheaply & \checkmark & \checkmark & $\times$ \ \hline
 No single point of trust for access & \checkmark & $\times$ & \checkmark \ \hline
 \end{tabular}\end{table}
+
+% ---- UI screenshots (captured from the running system, fictional data) ----
+egin{figure}[htbp]\centerline{\includegraphics[width=0.95\linewidth]{figures/ui_login.png}}
+\caption{Login and registration screen}\label{fig:ui_login}\end{figure}
+
+egin{figure}[htbp]\centerline{\includegraphics[width=0.95\linewidth]{figures/ui_patient_overview.png}}
+\caption{Patient overview dashboard}\label{fig:ui_patient_overview}\end{figure}
+
+egin{figure}[htbp]\centerline{\includegraphics[width=0.95\linewidth]{figures/ui_patient_records.png}}
+\caption{Patient record repository with on-chain SHA-256 verification}\label{fig:ui_patient_records}\end{figure}
+
+egin{figure}[htbp]\centerline{\includegraphics[width=0.95\linewidth]{figures/ui_patient_grant_modal.png}}
+\caption{Purpose- and time-bound grant dialog}\label{fig:ui_patient_grant_modal}\end{figure}
+
+egin{figure}[htbp]\centerline{\includegraphics[width=0.95\linewidth]{figures/ui_patient_access.png}}
+\caption{Access and consent control with on-chain read receipts}\label{fig:ui_patient_access}\end{figure}
+
+egin{figure}[htbp]\centerline{\includegraphics[width=0.95\linewidth]{figures/ui_doctor_overview.png}}
+\caption{Doctor overview: records shared with the doctor and own receipts}\label{fig:ui_doctor_overview}\end{figure}
+
+egin{figure}[htbp]\centerline{\includegraphics[width=0.95\linewidth]{figures/ui_doctor_lookup_granted.png}}
+\caption{Record lookup: access granted}\label{fig:ui_doctor_lookup_granted}\end{figure}
+
+egin{figure}[htbp]\centerline{\includegraphics[width=0.95\linewidth]{figures/ui_doctor_view_receipt.png}}
+\caption{Authorised read with receipt hash and integrity check}\label{fig:ui_doctor_view_receipt}\end{figure}
+
+egin{figure}[htbp]\centerline{\includegraphics[width=0.95\linewidth]{figures/ui_doctor_access_denied.png}}
+\caption{Record lookup: access denied after revocation}\label{fig:ui_doctor_access_denied}\end{figure}
+
+egin{figure}[htbp]\centerline{\includegraphics[width=0.95\linewidth]{figures/ui_admin_overview.png}}
+\caption{Hospital administration portal}\label{fig:ui_admin_overview}\end{figure}
+
+egin{figure}[htbp]\centerline{\includegraphics[width=0.95\linewidth]{figures/ui_admin_audit.png}}
+\caption{Admin activity history (on-chain audit trail)}\label{fig:ui_admin_audit}\end{figure}
+

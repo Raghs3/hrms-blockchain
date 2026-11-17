@@ -96,7 +96,7 @@ def fig1():
     s = Svg(1040, 1960)
     cx = 520
     pill(s, 120, 24, 800, 72, NAVY, "Proposed System — Consent-Controlled Record Flow", size=26)
-    pill(s, 280, 130, 480, 88, NAVY, "STEP 1", "Patient / Doctor Login (wallet-mapped)")
+    pill(s, 280, 130, 480, 88, NAVY, "STEP 1", "Register / Login (doctors approved by admin)")
     s.arrow([(cx, 218), (cx, 266)]); s.text(cx + 14, 248, "JWT Token", 16, GRAY, anchor="start", style="italic")
     step(s, 240, 266, 560, 88, BLUE, "STEP 2 — Patient Uploads Record", ["POST /records/upload (medical file)"])
     s.arrow([(cx, 354), (cx, 402)]); s.text(cx + 14, 384, "Plaintext file", 16, GRAY, anchor="start", style="italic")
@@ -105,28 +105,28 @@ def fig1():
     s.arrow([(cx, 552), (cx, 600)]); s.text(cx + 14, 582, "CID + hash only", 16, GRAY, anchor="start", style="italic")
     step(s, 240, 600, 560, 88, GREEN, "STEP 4 — On-chain Registration", ["RecordRegistry.addRecord(cid, hash)"])
     s.arrow([(cx, 688), (cx, 736)]); s.text(cx + 14, 718, "RecordAdded event", 16, GRAY, anchor="start", style="italic")
-    step(s, 240, 736, 560, 88, GREEN, "STEP 5 — Patient Grants Consent", ["grantAccess(recordId, doctor) → AccessGranted"])
+    step(s, 240, 736, 560, 88, GREEN, "STEP 5 — Patient Grants Purpose-Bound Consent", ["grantAccess(id, doctor, expiry, purpose)"])
     s.arrow([(cx, 824), (cx, 872)])
     step(s, 240, 872, 560, 88, BLUE, "STEP 6 — Doctor Requests Record", ["GET /records/:id/view (doctor's JWT)"])
     s.arrow([(cx, 960), (cx, 1008)]); s.text(cx + 14, 990, "Doctor's own wallet", 16, GRAY, anchor="start", style="italic")
     # diamond
     dy = 1008
     s.add(f'<polygon points="{cx},{dy} {cx+230},{dy+80} {cx},{dy+160} {cx-230},{dy+80}" fill="{LORANGE}" stroke="{ORANGE}" stroke-width="3"/>')
-    s.lines(cx, dy + 68, ["On-chain check:", "getRecord() authorized?"], 20, ORANGE, "bold")
+    s.lines(cx, dy + 58, ["On-chain check:", "live grant? (not revoked,", "not expired)"], 19, ORANGE, "bold")
     # Yes branch
     s.arrow([(cx, dy + 160), (cx, 1216)]); s.text(cx + 14, 1196, "Yes", 18, GRAY, anchor="start", style="italic")
-    group(s, 200, 1216, 640, 190, LGREEN, GREEN, "STEP 7 — Retrieve & Verify (Backend)", "#0E6655",
-          [["Fetch encrypted", "blob from IPFS"], ["Decrypt", "(AES-256-GCM)"], ["Verify SHA-256", "== on-chain hash"]], GREEN)
+    group(s, 200, 1216, 640, 190, LGREEN, GREEN, "STEP 7 — Log-before-Release (Backend)", "#0E6655",
+          [["Fetch from IPFS,", "decrypt, verify", "SHA-256 hash"], ["recordAccess()", "→ AccessReceipt", "(waits until mined)"], ["Release content", "+ receipt tx hash", "to the doctor"]], GREEN)
     # No branch
     s.arrow([(cx + 230, dy + 80), (900, dy + 80), (900, 1130)], RED)
     s.text(cx + 250, dy + 66, "No", 18, GRAY, anchor="start", style="italic")
     s.rect(780, 1130, 240, 80, LRED, RED, sw=2)
-    s.lines(900, 1160, ["403 ACCESS_DENIED", "(revert on-chain)"], 17, RED, "bold")
+    s.lines(900, 1160, ["403 ACCESS_DENIED", "no receipt, no gas"], 17, RED, "bold")
     # revoke loop
     s.arrow([(200, 1311), (70, 1311), (70, 916), (240, 916)], ORANGE)
-    s.text(40, 1100, "Patient revokes (AccessRevoked) → next request denied", 17, ORANGE, rot=-90)
+    s.text(40, 1100, "Patient revokes (or grant expires) → next request denied", 17, ORANGE, rot=-90)
     s.arrow([(cx, 1406), (cx, 1454)])
-    pill(s, 220, 1454, 600, 100, NAVY, "Record delivered to authorized doctor", "Audit trail: RecordAdded · AccessGranted · AccessRevoked", size=22)
+    pill(s, 220, 1454, 600, 100, NAVY, "Every release backed by an on-chain receipt", "Audit trail: AccessGranted · AccessRevoked · AccessReceipt", size=22)
     # legend
     s.rect(40, 1630, 960, 200, "#F0F3F7", "#A9BCD0", sw=2, rx=14)
     s.text(cx, 1672, "Legend", 20, NAVY, "bold")
@@ -151,9 +151,9 @@ def fig2():
     # Presentation
     s.rect(60, 130, 980, 190, LBLUE, BLUE, sw=3)
     s.text(550, 168, "Presentation Layer — React (Vite) Single-Page App", 22, NAVY, "bold")
-    for i, (t, ls) in enumerate([("Patient Dashboard", ["Upload record", "My records", "Grant / revoke access"]),
-                                  ("Doctor Dashboard", ["Access check", "View authorized", "records"]),
-                                  ("Auth Context", ["JWT session", "Role-based routing"])]):
+    for i, (t, ls) in enumerate([("Patient Portal", ["Upload · grant with reason + expiry", "Revoke · who opened my records", "Activity history"]),
+                                  ("Doctor Portal", ["Records shared with me", "View (receipt logged)", "My receipts"]),
+                                  ("Admin Portal", ["Approve / disable doctors", "Users · patients", "Full activity history"])]):
         x = 80 + i * 318
         s.rect(x, 190, 300, 112, BLUE, rx=8); s.text(x + 150, 218, t, 19, weight="bold"); s.lines(x + 150, 246, ls, 16, gap=1.3)
     s.arrow([(550, 320), (550, 400)], NAVY); s.arrow([(550, 400), (550, 320)], NAVY)
@@ -161,8 +161,8 @@ def fig2():
     # Application
     s.rect(60, 400, 980, 250, LBLUE, BLUE, sw=3)
     s.text(550, 438, "Application Layer — Node.js / Express API (port 4000)", 22, NAVY, "bold")
-    mods = [("auth.js", "JWT issue / verify"), ("routes.js", "7 REST endpoints"), ("crypto.js", "AES-256-GCM · SHA-256"),
-            ("ipfs.js", "Pinata upload / fetch"), ("chain.js", "ethers.js · wallets"), ("store.js", "labels (off-chain)")]
+    mods = [("auth.js", "bcrypt · JWT · role guards"), ("routes.js", "REST API + admin routes"), ("crypto.js", "AES-256-GCM · SHA-256"),
+            ("ipfs.js", "Pinata upload / fetch"), ("chain.js", "ethers.js · custodial wallets"), ("store.js", "accounts · labels")]
     for i, (a, b) in enumerate(mods):
         x = 80 + (i % 3) * 318; y = 462 + (i // 3) * 92
         s.rect(x, y, 300, 78, BLUE, rx=8); s.text(x + 150, y + 33, a, 19, weight="bold"); s.text(x + 150, y + 59, b, 16)
@@ -178,16 +178,16 @@ def fig2():
     s.rect(80, 830, 250, 190, GREEN, rx=8); s.text(205, 860, "UserRegistry", 19, weight="bold")
     s.lines(205, 888, ["OpenZeppelin AccessControl", "PATIENT_ROLE", "DOCTOR_ROLE", "HOSPITAL_ADMIN_ROLE"], 15, gap=1.4)
     s.rect(350, 830, 250, 190, GREEN, rx=8); s.text(475, 860, "RecordRegistry", 19, weight="bold")
-    s.lines(475, 888, ["cid · SHA-256 · owner", "authorizedAccess map", "grant / revoke / check", "Events = audit trail"], 15, gap=1.4)
+    s.lines(475, 888, ["cid · SHA-256 · owner", "grants: expiry + purpose", "recordAccess() receipts", "Events = audit trail"], 15, gap=1.4)
     s.arrow([(350, 925), (330, 925)], NAVY, head=True)
     # Off-chain
     s.rect(660, 770, 380, 270, LORANGE, ORANGE, sw=3)
     s.text(850, 808, "Off-chain Storage", 21, "#A04000", "bold")
     s.rect(680, 830, 340, 90, ORANGE, rx=8); s.text(850, 862, "IPFS via Pinata", 19, weight="bold"); s.lines(850, 888, ["AES-encrypted records only"], 16)
-    s.rect(680, 932, 340, 88, "#F5CBA7", rx=8); s.text(850, 964, "backend/data/store.json", 18, "#5D4037", "bold"); s.lines(850, 990, ["labels, display names (no PHI)"], 15, "#5D4037")
+    s.rect(680, 932, 340, 88, "#F5CBA7", rx=8); s.text(850, 964, "backend/data/store.json", 18, "#5D4037", "bold"); s.lines(850, 990, ["accounts, labels (no record content)"], 15, "#5D4037")
     # trust boundary note
     s.rect(60, 1062, 980, 36, "#F0F3F7", "#A9BCD0", sw=1, rx=8)
-    s.text(550, 1087, "Trust boundary: the contract — not the backend — decides who may read a record; the chain stores only CID + hash + consent state.", 17, NAVY, style="italic")
+    s.text(550, 1087, "Trust boundary: the contract decides who may read; the backend releases content only after an on-chain receipt is mined.", 17, NAVY, style="italic")
     s.text(550, 1124, "Fig. 2 — Layered System Architecture", 20, "#444", style="italic")
     s.h = 1140
     s.write("fig2_architecture")
@@ -234,100 +234,110 @@ def fig3():
     band("A  Upload & registration", "#EAF2FA33", a0, y + 250)
     y += 290
     b0 = y; y += 24
-    msg("Patient", "Backend API", "POST /records/:id/grant", y + 12)
-    msg("Backend API", "RecordRegistry", "grantAccess(id, doctor)", y + 48, GREEN)
+    msg("Patient", "Backend API", "POST /records/:id/grant (purpose, expiry)", y + 12)
+    msg("Backend API", "RecordRegistry", "grantAccess(id, doctor, expiry, purpose)", y + 48, GREEN)
     msg("RecordRegistry", "Backend API", "AccessGranted", y + 84, GREEN, "6 4")
-    band("B  Patient grants consent", "#EAF7F033", b0, y + 100)
+    band("B  Patient grants purpose-bound consent", "#EAF7F033", b0, y + 100)
     y += 140
     c0 = y; y += 24
     msg("Doctor", "Backend API", "GET /records/:id/view", y + 12)
     msg("Backend API", "RecordRegistry", "getRecord(id) as doctor", y + 48, GREEN)
-    msg("RecordRegistry", "Backend API", "cid, hash (authorized)", y + 84, GREEN, "6 4")
+    msg("RecordRegistry", "Backend API", "cid, hash (grant live)", y + 84, GREEN, "6 4")
     msg("Backend API", "IPFS (Pinata)", "fetch CID", y + 120)
     msg("IPFS (Pinata)", "Backend API", "ciphertext", y + 156, dash="6 4")
     selfmsg("Backend API", "decrypt · verify SHA-256", y + 184)
-    msg("Backend API", "Doctor", "plaintext record", y + 232, dash="6 4")
-    band("C  Authorized retrieval", "#FEF5E733", c0, y + 248)
-    y += 288
+    msg("Backend API", "RecordRegistry", "recordAccess(id) as doctor", y + 232, GREEN)
+    msg("RecordRegistry", "Backend API", "AccessReceipt (mined)", y + 268, GREEN, "6 4")
+    msg("Backend API", "Doctor", "record + receipt tx hash", y + 304, dash="6 4")
+    band("C  Authorized retrieval — log before release", "#FEF5E733", c0, y + 320)
+    y += 360
     d0 = y; y += 24
     msg("Patient", "Backend API", "POST /records/:id/revoke", y + 12)
     msg("Backend API", "RecordRegistry", "revokeAccess(id, doctor)", y + 48, GREEN)
     msg("RecordRegistry", "Backend API", "AccessRevoked", y + 84, GREEN, "6 4")
     msg("Doctor", "Backend API", "GET /records/:id/view", y + 126)
     msg("Backend API", "RecordRegistry", "getRecord(id) as doctor", y + 162, GREEN)
-    msg("RecordRegistry", "Backend API", "revert: not authorized", y + 198, RED, "6 4")
-    msg("Backend API", "Doctor", "403 ACCESS_DENIED", y + 234, RED, "6 4")
-    band("D  Revocation & denial", "#FDEDEC55", d0, y + 250)
-    s.text(560, y + 300, "Fig. 3 — Sequence Diagram of the Upload → Grant → View → Revoke → Deny Flow", 20, "#444", style="italic")
+    msg("RecordRegistry", "Backend API", "revert: revoked or expired", y + 198, RED, "6 4")
+    msg("Backend API", "Doctor", "403 ACCESS_DENIED (no receipt)", y + 234, RED, "6 4")
+    band("D  Revocation (or expiry) & denial", "#FDEDEC55", d0, y + 250)
+    s.text(560, y + 300, "Fig. 3 — Sequence Diagram: Upload → Grant → Receipted View → Revoke → Deny", 20, "#444", style="italic")
     s.h = y + 330
     s.write("fig3_sequence")
 
 
 # ---------------------------------------------------------------- Fig 4
 def fig4():
-    s = Svg(1100, 820)
+    s = Svg(1100, 800)
     pill(s, 150, 20, 800, 64, NAVY, "Smart-Contract Structure", size=26)
     # UserRegistry
-    s.rect(40, 130, 470, 400, "#fff", GREEN, sw=3)
+    s.rect(40, 130, 470, 370, "#fff", GREEN, sw=3)
     s.rect(40, 130, 470, 56, GREEN, rx=12); s.text(275, 166, "UserRegistry  «AccessControl»", 21, weight="bold")
     s.text(60, 216, "Roles (bytes32 constants)", 17, GREEN, "bold", "start")
     s.lines(60, 242, ["PATIENT_ROLE", "DOCTOR_ROLE", "HOSPITAL_ADMIN_ROLE"], 17, "#333", anchor="start", gap=1.4)
-    s.line(40, 330, 510, 330, GREEN, 2)
-    s.text(60, 358, "Functions", 17, GREEN, "bold", "start")
-    s.lines(60, 384, ["registerAsPatient()          — anyone", "registerDoctor(addr)         — admin only",
+    s.line(40, 320, 510, 320, GREEN, 2)
+    s.text(60, 348, "Functions", 17, GREEN, "bold", "start")
+    s.lines(60, 374, ["registerAsPatient()          — anyone", "registerDoctor(addr)         — admin only",
                       "registerHospitalAdmin(addr)  — default admin", "isPatient / isDoctor / isHospitalAdmin"], 16, "#333", anchor="start", gap=1.45)
-    s.text(60, 515, "Events: PatientRegistered · DoctorRegistered", 15, GRAY, anchor="start", style="italic")
+    s.text(60, 484, "Events: PatientRegistered · DoctorRegistered", 15, GRAY, anchor="start", style="italic")
     # RecordRegistry
     s.rect(590, 130, 470, 625, "#fff", GREEN, sw=3)
     s.rect(590, 130, 470, 56, GREEN, rx=12); s.text(825, 166, "RecordRegistry", 21, weight="bold")
-    s.text(610, 216, "struct Record", 17, GREEN, "bold", "start")
-    s.lines(610, 242, ["address owner", "string cid          // IPFS CID", "bytes32 fileHash    // SHA-256", "uint256 timestamp", "bool exists"], 16, "#333", anchor="start", gap=1.4)
-    s.line(590, 350, 1060, 350, GREEN, 2)
-    s.text(610, 378, "State", 17, GREEN, "bold", "start")
-    s.lines(610, 404, ["mapping(id ⇒ Record) records", "mapping(id ⇒ mapping(addr ⇒ bool))", "     authorizedAccess", "mapping(addr ⇒ uint[]) recordsByOwner"], 15, "#333", anchor="start", gap=1.4)
-    s.line(590, 480, 1060, 480, GREEN, 2)
-    s.text(610, 508, "Functions", 17, GREEN, "bold", "start")
-    s.lines(610, 534, ["addRecord(cid, hash)        — patient", "grantAccess(id, doctor)    — owner", "revokeAccess(id, doctor)   — owner",
-                       "checkAccess(addr, id)      — view", "getRecord(id)                    — owner/granted", "getRecordsByOwner(addr)  — view"], 15, "#333", anchor="start", gap=1.45)
-    s.line(590, 664, 1060, 664, GREEN, 2)
-    s.text(610, 692, "Events (audit trail)", 17, GREEN, "bold", "start")
-    s.lines(610, 716, ["RecordAdded · AccessGranted · AccessRevoked"], 15, "#333", anchor="start")
+    s.text(610, 216, "Structs", 17, GREEN, "bold", "start")
+    s.lines(610, 240, ["Record { owner, cid, fileHash, timestamp }", "Grant { active, expiry (uint64), purpose (≤128 B) }"], 15, "#333", anchor="start", gap=1.45)
+    s.line(590, 290, 1060, 290, GREEN, 2)
+    s.text(610, 316, "State", 17, GREEN, "bold", "start")
+    s.lines(610, 340, ["mapping(id ⇒ Record) records", "mapping(id ⇒ mapping(addr ⇒ Grant)) grants", "mapping(addr ⇒ uint[]) recordsByOwner"], 15, "#333", anchor="start", gap=1.4)
+    s.line(590, 405, 1060, 405, GREEN, 2)
+    s.text(610, 431, "Functions", 17, GREEN, "bold", "start")
+    s.lines(610, 456, ["addRecord(cid, hash)  — patient",
+                       "grantAccess(id, doctor, expiry, purpose)  — owner",
+                       "revokeAccess(id, doctor)  — owner",
+                       "recordAccess(id) → AccessReceipt  — owner / live grant",
+                       "getRecord(id)  — owner / live grant",
+                       "checkAccess(addr, id) · getGrant(id, doctor)  — view",
+                       "getRecordsByOwner(addr)  — view"], 14, "#333", anchor="start", gap=1.5)
+    s.line(590, 650, 1060, 650, GREEN, 2)
+    s.text(610, 676, "Events (audit trail)", 17, GREEN, "bold", "start")
+    s.lines(610, 700, ["RecordAdded · AccessGranted(expiry, purpose)", "AccessRevoked · AccessReceipt(accessor, timestamp)"], 15, "#333", anchor="start")
     # relation
-    s.arrow([(590, 300), (510, 300)], NAVY)
-    s.text(550, 286, "isPatient()", 15, "#222"); s.text(550, 322, "isDoctor()", 15, "#222")
-    # roles table
-    s.rect(40, 560, 470, 170, LBLUE, BLUE, sw=2, rx=10)
-    s.text(275, 592, "Custom errors (gas-cheap reverts)", 17, NAVY, "bold")
-    s.lines(275, 620, ["NotAPatient(account)", "NotADoctor(account)", "RecordDoesNotExist(id)", "NotRecordOwner(id, caller)"], 16, "#222", gap=1.4)
-    s.text(550, 776, "Fig. 4 — Smart-Contract Structure and Dependencies", 20, "#444", style="italic")
-    s.h = 800
+    s.arrow([(590, 270), (510, 270)], NAVY)
+    s.text(550, 256, "isPatient()", 15, "#222"); s.text(550, 292, "isDoctor()", 15, "#222")
+    # errors
+    s.rect(40, 520, 470, 235, LBLUE, BLUE, sw=2, rx=10)
+    s.text(275, 552, "Custom errors (gas-cheap reverts)", 17, NAVY, "bold")
+    s.lines(275, 580, ["NotAPatient · NotADoctor", "RecordDoesNotExist(id) · NotRecordOwner(id, caller)",
+                       "AccessDenied(id, caller)", "ExpiryInPast(expiry)", "PurposeRequired · PurposeTooLong(len)"], 15, "#222", gap=1.6)
+    s.text(550, 786, "Fig. 4 — Smart-Contract Structure and Dependencies", 20, "#444", style="italic")
+    s.h = 810
     s.write("fig4_contracts")
 
 
 # ---------------------------------------------------------------- Fig 5
 def fig5():
-    s = Svg(1100, 560)
+    s = Svg(1100, 700)
     pill(s, 150, 20, 800, 64, NAVY, "Consent State Machine for One (record, doctor) Pair", size=24)
     def state(x, y, w, label, sub, fill, edge):
         s.rect(x, y, w, 110, fill, edge, sw=3, rx=55)
         s.text(x + w / 2, y + 50, label, 22, edge, "bold"); s.text(x + w / 2, y + 80, sub, 17, "#333")
-    state(60, 200, 240, "No Access", "checkAccess = false", LBLUE, BLUE)
-    state(430, 200, 240, "Granted", "checkAccess = true", LGREEN, GREEN)
-    state(800, 200, 240, "Revoked", "checkAccess = false", LRED, RED)
-    s.arrow([(300, 235), (430, 235)], GREEN); s.text(365, 220, "grantAccess()", 15, "#222")
-    s.text(365, 262, "emit AccessGranted", 13, GRAY, style="italic")
-    s.arrow([(670, 235), (800, 235)], RED); s.text(735, 220, "revokeAccess()", 15, "#222")
-    s.text(735, 262, "emit AccessRevoked", 13, GRAY, style="italic")
-    s.arrow([(800, 285), (670, 285)], GREEN); s.text(735, 308, "grantAccess() (re-grant)", 14, "#222")
-    # initial
-    s.add(f'<circle cx="40" cy="255" r="9" fill="{NAVY}"/>'); s.arrow([(49, 255), (60, 255)], NAVY)
-    # Owner box
-    s.rect(60, 400, 980, 90, LORANGE, ORANGE, sw=2, rx=12)
-    s.lines(550, 432, ["Record owner (patient) always passes checkAccess — no grant needed.",
-                       "Re-granting after a revoke is allowed; every transition is an immutable on-chain event."], 18, "#A04000", gap=1.5)
-    s.text(550, 365, "Revocation is immediate: no grace period, no cached permission — the next getRecord() by the doctor reverts.", 18, NAVY, style="italic")
-    s.text(550, 540, "Fig. 5 — Consent State Machine", 20, "#444", style="italic")
-    s.h = 560
+    state(60, 150, 240, "No Access", "checkAccess = false", LBLUE, BLUE)
+    state(430, 150, 240, "Granted", "checkAccess = true", LGREEN, GREEN)
+    state(800, 150, 240, "Revoked", "checkAccess = false", LRED, RED)
+    state(430, 380, 240, "Expired", "checkAccess = false", LORANGE, ORANGE)
+    s.arrow([(300, 185), (430, 185)], GREEN); s.text(365, 168, "grantAccess()", 15, "#222")
+    s.text(365, 212, "expiry + purpose", 13, GRAY, style="italic")
+    s.arrow([(670, 185), (800, 185)], RED); s.text(735, 168, "revokeAccess()", 15, "#222")
+    s.text(735, 212, "emit AccessRevoked", 13, GRAY, style="italic")
+    s.arrow([(800, 235), (670, 235)], GREEN); s.text(735, 258, "re-grant", 14, "#222")
+    s.arrow([(500, 260), (500, 380)], ORANGE); s.text(488, 322, "expiry reached", 14, "#A04000", anchor="end")
+    s.text(488, 342, "(no transaction)", 13, GRAY, anchor="end", style="italic")
+    s.arrow([(600, 380), (600, 260)], GREEN); s.text(612, 322, "re-grant (extend)", 14, "#222", anchor="start")
+    s.add(f'<circle cx="40" cy="205" r="9" fill="{NAVY}"/>'); s.arrow([(49, 205), (60, 205)], NAVY)
+    s.text(550, 540, "Revocation and expiry are immediate: no grace period, no cached permission — the next getRecord() by the doctor reverts.", 17, NAVY, style="italic")
+    s.rect(60, 570, 980, 90, LORANGE, ORANGE, sw=2, rx=12)
+    s.lines(550, 602, ["Record owner (patient) always passes checkAccess — no grant needed.",
+                       "Every grant, revoke and read (AccessReceipt) is an immutable on-chain event."], 18, "#A04000", gap=1.5)
+    s.text(550, 690, "Fig. 5 — Consent State Machine", 20, "#444", style="italic")
+    s.h = 710
     s.write("fig5_consent_states")
 
 
@@ -347,7 +357,7 @@ def fig6():
     t = M["tx"]
     data = [("addRecord", t["addRecord"], BLUE), ("grantAccess", t["grantAccess_first"], GREEN),
             ("registerDoctor", t["registerDoctor"], GREEN), ("registerAsPatient", t["registerAsPatient"], GREEN),
-            ("revokeAccess", t["revokeAccess"], RED)]
+            ("revokeAccess", t["revokeAccess"], RED), ("recordAccess\n(receipt)", t["recordAccess_doctor"], ORANGE)]
     s = Svg(1000, 560)
     x0, y0, w, h = 130, 60, 820, 380
     chart_frame(s, x0, y0, w, h, 250000, 50000, "Gas used")
@@ -355,39 +365,47 @@ def fig6():
     for i, (n, v, c) in enumerate(data):
         bh = v / 250000 * h; bx = x0 + i * bw + bw * 0.18
         s.rect(bx, y0 + h - bh, bw * 0.64, bh, c, rx=4)
-        s.text(bx + bw * 0.32, y0 + h - bh - 10, f"{v:,}", 17, "#222", "bold")
-        s.text(bx + bw * 0.32, y0 + h + 28, n, 17, "#222")
+        s.text(bx + bw * 0.32, y0 + h - bh - 10, f"{v:,}", 16, "#222", "bold")
+        for j, part in enumerate(n.split("\n")): s.text(bx + bw * 0.32, y0 + h + 28 + j * 20, part, 16, "#222")
     s.text(500, 30, "Gas cost per smart-contract transaction", 22, NAVY, "bold")
-    s.text(500, 500, "Measured on Hardhat (solc 0.8.24, optimizer 200 runs); first call per function shown.", 15, GRAY, style="italic")
+    s.text(500, 500, "Measured on Hardhat (solc 0.8.24, optimizer 200 runs); grant uses a short purpose and no expiry.", 15, GRAY, style="italic")
     s.text(500, 535, "Fig. 6 — Gas Consumption per Contract Operation", 20, "#444", style="italic")
     s.write("fig6_gas_cost")
 
 
 def fig7():
+    R = json.load(open(os.path.join(HERE, "data", "receipt-measurements.json")))["gas"]
     s = Svg(1000, 560)
     x0, y0, w, h = 130, 60, 820, 380
-    chart_frame(s, x0, y0, w, h, 300000, 50000, "Gas used")
-    sc = M["scaling"]; rg = M["recordGrowth"]
-    # grant series: x = authorized doctors 2..10
-    def plot(series, xs, color, label, ly):
-        xmin, xmax = min(xs), max(xs)
-        pts = [(x0 + 40 + (x - xmin) / (xmax - xmin) * (w - 80), y0 + h - v / 300000 * h) for x, v in zip(xs, series)]
+    ymax = 300000
+    chart_frame(s, x0, y0, w, h, ymax, 50000, "Gas used")
+    xs = [r["purposeBytes"] for r in R["purposeLengthScaling"]]
+    px = lambda b: x0 + 40 + (b - 1) / 127 * (w - 80)
+    py = lambda v: y0 + h - v / ymax * h
+    for b in (1, 32, 64, 96, 128):
+        s.line(px(b), y0 + h, px(b), y0 + h + 6, "#333", 2); s.text(px(b), y0 + h + 26, str(b), 15, "#333")
+
+    def series(vals, color, label, ly):
+        pts = [(px(b), py(v)) for b, v in zip(xs, vals)]
         s.arrow(pts, color, head=False, sw=4)
-        for px, py in pts: s.add(f'<circle cx="{px}" cy="{py}" r="6" fill="{color}"/>')
+        for x, y in pts: s.add(f'<circle cx="{x}" cy="{y}" r="6" fill="{color}"/>')
         s.rect(x0 + 40, ly, 22, 22, color, rx=3); s.text(x0 + 72, ly + 18, label, 17, "#222", anchor="start")
-        return xmin, xmax
-    plot([r["addRecordGas"] for r in rg], [r["recordsOwned"] for r in rg], BLUE, "addRecord — x: records already owned by patient (2–20)", 70)
-    plot([r["grantGas"] for r in sc], [r["authorizedDoctors"] for r in sc], GREEN, "grantAccess — x: doctors already authorized on the record (2–10)", 100)
-    s.text(x0 + w / 2, y0 + h + 36, "Number of items already stored (x-axis normalised per series)", 17, "#333")
-    s.text(500, 30, "Per-operation gas stays constant as state grows", 22, NAVY, "bold")
-    s.text(500, 500, "Both operations are O(1): mapping writes, no loops over existing doctors or records.", 15, GRAY, style="italic")
-    s.text(500, 535, "Fig. 7 — Gas Scalability of addRecord and grantAccess", 20, "#444", style="italic")
+    n = len(xs)
+    series([R["addRecord"]] * n, BLUE, "addRecord (flat, independent of purpose)", 70)
+    series([r["grantGas"] for r in R["purposeLengthScaling"]], GREEN, "grantAccess (grows with purpose text length)", 100)
+    series([R["recordAccess_repeat"]] * n, ORANGE, "recordAccess receipt (flat, ~31k)", 130)
+    s.text(x0 + w / 2, y0 + h + 52, "Purpose length in bytes (limit 128)", 17, "#333")
+    s.text(500, 30, "Purpose storage drives grant cost; receipts stay cheap", 22, NAVY, "bold")
+    s.text(500, 528, "Grant gas is flat in the number of authorised doctors (O(1) mapping write); string storage dominates.", 15, GRAY, style="italic")
+    s.text(500, 560, "Fig. 7 — Gas vs. Purpose Length for grantAccess", 20, "#444", style="italic")
+    s.h = 580
     s.write("fig7_scaling")
 
 
 def fig8():
     L = M["readLatencyMs"]
-    data = [("checkAccess", L["checkAccess"], GREEN), ("getRecord\n(authorized)", L["getRecord_authorized"], GREEN),
+    data = [("checkAccess", L["checkAccess"], GREEN), ("getGrant", L["getGrant"], GREEN),
+            ("getRecord\n(authorized)", L["getRecord_authorized"], GREEN),
             ("getRecord\n(denied)", L["getRecord_denied"], RED), ("getRecordsByOwner", L["getRecordsByOwner"], BLUE)]
     s = Svg(1000, 560)
     x0, y0, w, h = 130, 60, 820, 380
@@ -398,13 +416,36 @@ def fig8():
         bh = v / ymax * h; bx = x0 + i * bw + bw * 0.2
         s.rect(bx, y0 + h - bh, bw * 0.6, bh, c, rx=4)
         s.text(bx + bw * 0.3, y0 + h - bh - 10, f"{v:.3f}", 17, "#222", "bold")
-        for j, part in enumerate(n.split("\n")): s.text(bx + bw * 0.3, y0 + h + 28 + j * 20, part, 17, "#222")
-    s.text(500, 30, "On-chain read latency (consent check path)", 22, NAVY, "bold")
+        for j, part in enumerate(n.split("\n")): s.text(bx + bw * 0.3, y0 + h + 28 + j * 20, part, 16, "#222")
+    s.text(500, 30, "On-chain view-call latency (consent check path)", 22, NAVY, "bold")
     s.text(500, 500, "Median of 200 view calls on the in-process Hardhat network; excludes network RTT and IPFS fetch.", 15, GRAY, style="italic")
-    s.text(500, 535, "Fig. 8 — Read-path Latency of Contract Calls", 20, "#444", style="italic")
+    s.text(500, 535, "Fig. 8 — Read-path Latency of Contract View Calls", 20, "#444", style="italic")
     s.write("fig8_latency")
 
 
+def fig9():
+    Lm = json.load(open(os.path.join(HERE, "data", "latency-measurements.json")))
+    data = [("Plain read\n(no receipt)", Lm["plainReadMs"], BLUE), ("Receipted read\n(chain + receipt tx)", Lm["receiptedReadMs"], ORANGE),
+            ("HTTP /view\n(end to end)", Lm["httpViewMs"], GREEN)]
+    s = Svg(1000, 560)
+    x0, y0, w, h = 130, 60, 820, 380
+    ymax = 200
+    chart_frame(s, x0, y0, w, h, ymax, 40, "Latency (ms)")
+    bw = w / len(data)
+    for i, (n, d, c) in enumerate(data):
+        bh = d["medianMs"] / ymax * h; bx = x0 + i * bw + bw * 0.22; cx = bx + bw * 0.28
+        s.rect(bx, y0 + h - bh, bw * 0.56, bh, c, rx=4)
+        yp = y0 + h - d["p95Ms"] / ymax * h
+        s.line(cx, yp, cx, y0 + h - bh, "#222", 2); s.line(cx - 12, yp, cx + 12, yp, "#222", 2)
+        s.text(cx, yp - 10, f"median {d['medianMs']:.0f} · p95 {d['p95Ms']:.0f}", 16, "#222", "bold")
+        for j, part in enumerate(n.split("\n")): s.text(cx, y0 + h + 28 + j * 20, part, 16, "#222")
+    s.text(500, 30, "Cost of log-before-release on the read path", 22, NAVY, "bold")
+    s.text(500, 532, "Local Hardhat node, 200 KB file, 30 runs; receipt adds ~112 ms here. A real network adds about one block time.", 15, GRAY, style="italic")
+    s.text(500, 562, "Fig. 9 — Read Latency With and Without On-chain Receipts", 20, "#444", style="italic")
+    s.h = 585
+    s.write("fig9_read_latency")
+
+
 if __name__ == "__main__":
-    for f in (fig1, fig2, fig3, fig4, fig5, fig6, fig7, fig8):
+    for f in (fig1, fig2, fig3, fig4, fig5, fig6, fig7, fig8, fig9):
         f()
