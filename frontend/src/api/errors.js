@@ -28,6 +28,8 @@ export const ERROR_MESSAGES = {
   INTEGRITY_CHECK_FAILED: 'Record integrity check failed. The decrypted content does not match the blockchain hash.',
   UPLOAD_ERROR: 'File upload failed. Ensure the file size is under 10 MB.',
   INTERNAL_ERROR: 'A server or blockchain error occurred. Please try again.',
+  DOCTOR_NOT_FOUND: 'The specified doctor could not be found.',
+  RPC_ERROR: 'Blockchain RPC node is currently unavailable. Please check the network connection and retry.',
 };
 
 /**

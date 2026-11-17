@@ -51,7 +51,8 @@ export default function Login() {
 
   // Already authenticated → redirect to appropriate dashboard
   if (isAuthenticated) {
-    return <Navigate to={currentRole === 'doctor' ? '/doctor' : '/patient'} replace />;
+    const home = currentRole === 'admin' ? '/admin' : currentRole === 'doctor' ? '/doctor' : '/patient';
+    return <Navigate to={home} replace />;
   }
 
   // Handle Login submission
@@ -79,7 +80,9 @@ export default function Login() {
     try {
       const res = await login({ email, password });
       loginUser(res);
-      navigate(res.user?.role === 'doctor' ? '/doctor' : '/patient', { replace: true });
+      const targetRole = res.user?.role;
+      const home = targetRole === 'admin' ? '/admin' : targetRole === 'doctor' ? '/doctor' : '/patient';
+      navigate(home, { replace: true });
     } catch (err) {
       setError(err?.message || 'Login failed. Please check your credentials.');
     } finally {
