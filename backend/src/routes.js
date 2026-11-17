@@ -15,6 +15,7 @@ const {
   rejectDoctor,
 } = require("./auth");
 const { encrypt, decrypt, sha256Hex } = require("./crypto");
+const { validateUploadedFile } = require("./fileValidator");
 const ipfs = require("./ipfs");
 const store = require("./store");
 
@@ -107,11 +108,18 @@ router.post("/admin/doctors/:id/reject", requireAuth("admin"), wrap(async (req, 
 }));
 
 router.post("/records/upload", requireAuth("patient"), upload.single("file"), wrap(async (req, res) => {
-  if (!req.file) return res.status(400).json({ error: "FILE_REQUIRED" });
+  const validation = validateUploadedFile(req.file);
+  if (!validation.valid) {
+    return res.status(validation.status || 400).json({
+      error: validation.error,
+      message: validation.message,
+    });
+  }
 
+  const { mimeType, originalFileName, sizeBytes } = validation;
   const plaintext = req.file.buffer;
   const fileHash = sha256Hex(plaintext);
-  const cid = await ipfs.pin(encrypt(plaintext), req.file.originalname);
+  const cid = await ipfs.pin(encrypt(plaintext), originalFileName);
 
   const tx = await recordRegistry.connect(req.wallet).addRecord(cid, fileHash);
   const receipt = await tx.wait();
@@ -120,12 +128,21 @@ router.post("/records/upload", requireAuth("patient"), upload.single("file"), wr
     .find((parsed) => parsed?.name === "RecordAdded");
   const recordId = added.args.recordId.toString();
 
-  store.setLabel(recordId, (req.body.label || "").trim() || req.file.originalname);
+  store.setLabel(recordId, (req.body.label || "").trim() || originalFileName);
+  store.setRecordMetadata(recordId, {
+    mimeType,
+    originalFileName,
+    sizeBytes,
+  });
+
   res.json({
     recordId,
     cid,
     txHash: tx.hash,
     uploadedAt: new Date(Number(added.args.timestamp) * 1000).toISOString(),
+    mimeType,
+    originalFileName,
+    sizeBytes,
   });
 }));
 
@@ -332,7 +349,12 @@ router.get("/audit-trail", requireAuth(), wrap(async (req, res) => {
 router.use((err, req, res, next) => {
   const known = contractFailure(err);
   if (known) return res.status(known[0]).json({ error: known[1] });
-  if (err instanceof multer.MulterError) return res.status(400).json({ error: "UPLOAD_ERROR", message: err.message });
+  if (err instanceof multer.MulterError) {
+    if (err.code === "LIMIT_FILE_SIZE") {
+      return res.status(400).json({ error: "FILE_TOO_LARGE", message: "File exceeds 10 MB limit" });
+    }
+    return res.status(400).json({ error: "UPLOAD_ERROR", message: err.message });
+  }
   console.error(err);
   res.status(500).json({ error: "INTERNAL_ERROR", message: err.shortMessage || err.message });
 });

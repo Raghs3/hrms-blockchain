@@ -5,12 +5,13 @@ const path = require("path");
 // record labels, wallet-address -> display-name lookups, and accounts.
 const file = path.join(__dirname, "..", "data", "store.json");
 
-let data = { labels: {}, names: {}, accounts: [] };
+let data = { labels: {}, names: {}, accounts: [], metadata: {} };
 
 function load() {
   try {
     const loaded = JSON.parse(fs.readFileSync(file, "utf8"));
-    data = Object.assign({ labels: {}, names: {}, accounts: [] }, loaded);
+    data = Object.assign({ labels: {}, names: {}, accounts: [], metadata: {} }, loaded);
+    if (!data.metadata) data.metadata = {};
   } catch {
     // first run: start empty
   }
@@ -42,6 +43,35 @@ module.exports = {
   getName(address) {
     load();
     return data.names[address.toLowerCase()] || "Unknown";
+  },
+
+  // ── Record Metadata ───────────────────────────────────────────────────────
+  // shape: { mimeType, originalFileName, sizeBytes }
+  setRecordMetadata(recordId, meta) {
+    load();
+    if (!data.metadata) data.metadata = {};
+    data.metadata[recordId] = {
+      mimeType: meta?.mimeType || "text/plain",
+      originalFileName: meta?.originalFileName || null,
+      sizeBytes: typeof meta?.sizeBytes === "number" ? meta.sizeBytes : null,
+    };
+    save();
+  },
+  getRecordMetadata(recordId) {
+    load();
+    const meta = data.metadata?.[recordId];
+    if (meta) {
+      return {
+        mimeType: meta.mimeType || "text/plain",
+        originalFileName: meta.originalFileName || null,
+        sizeBytes: typeof meta.sizeBytes === "number" ? meta.sizeBytes : null,
+      };
+    }
+    return {
+      mimeType: "text/plain",
+      originalFileName: null,
+      sizeBytes: null,
+    };
   },
 
   // ── Account CRUD ──────────────────────────────────────────────────────────
