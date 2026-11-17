@@ -374,6 +374,16 @@ export default function RecordLookup({ sessionHistory }) {
               <div>
                 <div className="record-label">{recordData.label || 'Medical Record'}</div>
                 <div className="record-id">Record #{recordData.recordId}</div>
+                {recordData.accessReceipt?.txHash && (
+                  <div
+                    id="access-receipt-line"
+                    style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', marginTop: '2px' }}
+                    title={recordData.accessReceipt.txHash}
+                  >
+                    This read was logged on the blockchain: receipt {recordData.accessReceipt.txHash.slice(0, 10)}...
+                    {recordData.accessReceipt.txHash.slice(-8)} (block {recordData.accessReceipt.blockNumber})
+                  </div>
+                )}
                 {recordData.owner && (
                   <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.75rem', color: 'var(--color-text-muted)', marginTop: '2px' }}>
                     <span>Patient Owner:</span>

@@ -5,6 +5,8 @@ import LoadingState from '../../components/LoadingState';
 import EmptyState from '../../components/EmptyState';
 import ViewRecordModal from '../../components/ViewRecordModal';
 import AuditTrail from '../../components/AuditTrail';
+import AccessReceipts from '../../components/AccessReceipts';
+import { describeExpiry } from '../../components/consentFormat';
 import { useAuth } from '../../context/AuthContext';
 import { useDoctorSession } from '../../context/DoctorSessionContext';
 import { getSharedWithMe } from '../../api/records';
@@ -306,6 +308,13 @@ export default function DoctorOverview() {
                             <span className="table-cell-secondary" style={{ fontFamily: 'ui-monospace, monospace' }}>
                               ID: #{rec.recordId}
                             </span>
+                            {(rec.purpose || rec.expiresAt) && (
+                              <span style={{ fontSize: '0.725rem', color: 'var(--color-text-muted)' }}>
+                                {rec.purpose}
+                                {rec.purpose ? ' · ' : ''}
+                                {describeExpiry(rec.expiresAt)}
+                              </span>
+                            )}
                             {rec.originalFileName && (
                               <span
                                 style={{
@@ -556,6 +565,17 @@ export default function DoctorOverview() {
             </ul>
           )}
         </div>
+      </div>
+
+      {/* Records this doctor has opened (each backed by an on-chain receipt) */}
+      <div style={{ marginTop: '24px' }}>
+        <AccessReceipts
+          viewer="doctor"
+          title="Records you have opened"
+          description="Each time you open a record, a receipt is written to the blockchain first."
+          maxItems={10}
+          refreshKey={sharedRecords.length}
+        />
       </div>
 
       {/* Doctor Consent & Access Audit Trail */}

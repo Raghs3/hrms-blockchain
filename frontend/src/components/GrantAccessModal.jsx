@@ -4,7 +4,10 @@ import { grantAccess } from '../api/records';
 import { getDoctors } from '../api/auth';
 import { useToast } from '../context/ToastContext';
 import { useAuditTrail } from '../context/AuditTrailContext';
+import { PURPOSE_PRESETS, EXPIRY_OPTIONS, expiryIsoFromHours, describeExpiry } from './consentFormat';
 
+const CUSTOM_PURPOSE = '__custom__';
+const MAX_PURPOSE_BYTES = 128;
 const ADDRESS_REGEX = /^0x[a-fA-F0-9]{40}$/;
 
 function truncateHash(hash) {
@@ -33,9 +36,15 @@ export default function GrantAccessModal({ record, onSuccess }) {
   const [error, setError] = useState('');
   const [grantResult, setGrantResult] = useState(null);
   const [copied, setCopied] = useState(false);
+  const [purposeChoice, setPurposeChoice] = useState(PURPOSE_PRESETS[0]);
+  const [customPurpose, setCustomPurpose] = useState('');
+  const [expiryIndex, setExpiryIndex] = useState(1); // default: 7 days
 
   async function handleOpen() {
     setIsOpen(true);
+    setPurposeChoice(PURPOSE_PRESETS[0]);
+    setCustomPurpose('');
+    setExpiryIndex(1);
     setSelectedAddress('');
     setCustomAddress('');
     setIsCustomMode(false);
@@ -101,9 +110,20 @@ export default function GrantAccessModal({ record, onSuccess }) {
       return;
     }
 
+    const purpose = (purposeChoice === CUSTOM_PURPOSE ? customPurpose : purposeChoice).trim();
+    if (!purpose) {
+      setError('Please say why this doctor needs access (for example, "Second opinion").');
+      return;
+    }
+    if (new TextEncoder().encode(purpose).length > MAX_PURPOSE_BYTES) {
+      setError(`The reason is too long (limit ${MAX_PURPOSE_BYTES} bytes).`);
+      return;
+    }
+    const expiresAt = expiryIsoFromHours(EXPIRY_OPTIONS[expiryIndex].hours);
+
     setLoading(true);
     try {
-      const result = await grantAccess(record.recordId, targetAddress);
+      const result = await grantAccess(record.recordId, targetAddress, { purpose, expiresAt });
       setGrantResult(result);
 
       // Find doctor name for toast if available
@@ -163,6 +183,12 @@ export default function GrantAccessModal({ record, onSuccess }) {
                 <div className="hash-value" style={{ fontFamily: 'Courier New, monospace' }}>
                   {record.recordId}
                 </div>
+              </div>
+              <div className="success-detail" style={{ marginTop: '10px' }}>
+                <strong>Reason:</strong> {grantResult.purpose || '—'}
+                <br />
+                <strong>Access:</strong> {describeExpiry(grantResult.expiresAt)}
+                {grantResult.expiresAt ? ' (ends automatically, no revoke needed)' : ''}
               </div>
               <div className="success-detail" style={{ marginTop: '10px' }}>
                 <strong>Transaction Hash:</strong>
@@ -303,6 +329,71 @@ export default function GrantAccessModal({ record, onSuccess }) {
                       </div>
                     </div>
                   )}
+                </>
+              )}
+
+              {!loadingDoctors && (
+                <>
+                  <div className="form-group">
+                    <label className="form-label" htmlFor="grant-purpose">
+                      Reason for access <span aria-hidden="true" style={{ color: 'var(--color-danger)' }}>*</span>
+                    </label>
+                    <select
+                      id="grant-purpose"
+                      className="form-select"
+                      value={purposeChoice}
+                      onChange={(e) => {
+                        setPurposeChoice(e.target.value);
+                        setError('');
+                      }}
+                      disabled={loading}
+                    >
+                      {PURPOSE_PRESETS.map((p) => (
+                        <option key={p} value={p}>
+                          {p}
+                        </option>
+                      ))}
+                      <option value={CUSTOM_PURPOSE}>Other (type your own)...</option>
+                    </select>
+                    {purposeChoice === CUSTOM_PURPOSE && (
+                      <input
+                        id="grant-purpose-custom"
+                        type="text"
+                        className="form-control"
+                        style={{ marginTop: '8px' }}
+                        placeholder="e.g. Pre-surgery review"
+                        value={customPurpose}
+                        maxLength={100}
+                        onChange={(e) => {
+                          setCustomPurpose(e.target.value);
+                          setError('');
+                        }}
+                        disabled={loading}
+                      />
+                    )}
+                  </div>
+
+                  <div className="form-group">
+                    <label className="form-label" htmlFor="grant-expiry">
+                      Access lasts
+                    </label>
+                    <select
+                      id="grant-expiry"
+                      className="form-select"
+                      value={expiryIndex}
+                      onChange={(e) => setExpiryIndex(Number(e.target.value))}
+                      disabled={loading}
+                    >
+                      {EXPIRY_OPTIONS.map((o, i) => (
+                        <option key={o.label} value={i}>
+                          {o.label}
+                        </option>
+                      ))}
+                    </select>
+                    <div className="form-hint" style={{ marginTop: '6px', fontSize: '0.8125rem', color: 'var(--color-text-muted)' }}>
+                      The blockchain ends access by itself at that time. You can still revoke earlier.
+                    </div>
+                  </div>
                 </>
               )}
             </div>
