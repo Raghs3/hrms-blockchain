@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import Modal from './Modal';
 import LoadingState from './LoadingState';
-import RecordContentViewer, { downloadRecordContent } from './RecordContentViewer';
+import RecordContentViewer, { downloadRecordContent, verifyRecordIntegrity } from './RecordContentViewer';
 import { viewRecord } from '../api/records';
 import { getErrorMessage } from '../api/errors';
 
@@ -19,6 +19,7 @@ export default function ViewRecordModal({ isOpen, onClose, record }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [recordData, setRecordData] = useState(null);
+  const [integrityVerified, setIntegrityVerified] = useState(true);
   const [copiedHash, setCopiedHash] = useState(false);
   const [copiedCid, setCopiedCid] = useState(false);
   const [copiedOwner, setCopiedOwner] = useState(false);
@@ -28,6 +29,7 @@ export default function ViewRecordModal({ isOpen, onClose, record }) {
       setRecordData(null);
       setError('');
       setLoading(false);
+      setIntegrityVerified(true);
       return;
     }
 
@@ -37,9 +39,16 @@ export default function ViewRecordModal({ isOpen, onClose, record }) {
     setRecordData(null);
 
     viewRecord(record.recordId)
-      .then((data) => {
+      .then(async (data) => {
         if (!isMounted) return;
         setRecordData(data);
+        const hashToVerify = record?.fileHash || data?.fileHash;
+        if (hashToVerify) {
+          const result = await verifyRecordIntegrity(data.content, data.encoding, hashToVerify);
+          if (isMounted) {
+            setIntegrityVerified(result.verified);
+          }
+        }
       })
       .catch((err) => {
         if (!isMounted) return;
@@ -54,7 +63,7 @@ export default function ViewRecordModal({ isOpen, onClose, record }) {
       isMounted = false;
       setRecordData(null);
     };
-  }, [isOpen, record?.recordId]);
+  }, [isOpen, record?.recordId, record?.fileHash]);
 
   function handleCopy(text, setCopiedFn) {
     if (!text) return;
@@ -65,8 +74,23 @@ export default function ViewRecordModal({ isOpen, onClose, record }) {
 
   function handleDownloadClick() {
     if (!recordData?.content) return;
-    const filename = `${(recordData.label || record?.label || 'medical-record').replace(/[^a-zA-Z0-9_-]/g, '_')}.txt`;
-    downloadRecordContent(recordData.content, filename);
+    const defaultExt =
+      recordData.mimeType === 'application/pdf'
+        ? '.pdf'
+        : recordData.mimeType === 'image/png'
+        ? '.png'
+        : recordData.mimeType === 'image/jpeg'
+        ? '.jpg'
+        : recordData.mimeType === 'application/msword'
+        ? '.doc'
+        : recordData.mimeType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+        ? '.docx'
+        : '.txt';
+
+    const filename =
+      recordData.originalFileName ||
+      `${(recordData.label || record?.label || 'medical-record').replace(/[^a-zA-Z0-9_-]/g, '_')}${defaultExt}`;
+    downloadRecordContent(recordData.content, filename, recordData.mimeType, recordData.encoding);
   }
 
   const effectiveFileHash = record?.fileHash || recordData?.fileHash;
@@ -200,6 +224,25 @@ export default function ViewRecordModal({ isOpen, onClose, record }) {
                   </div>
                 </div>
               )}
+
+              {recordData.mimeType && (
+                <div>
+                  <span style={{ color: 'var(--color-text-muted)', display: 'block', fontSize: '0.75rem' }}>File Format</span>
+                  <span style={{ fontWeight: 600 }}>
+                    {recordData.mimeType === 'application/pdf'
+                      ? 'PDF Document'
+                      : recordData.mimeType === 'image/png'
+                      ? 'PNG Image'
+                      : recordData.mimeType === 'image/jpeg'
+                      ? 'JPEG Image'
+                      : recordData.mimeType === 'application/msword'
+                      ? 'Word (.doc)'
+                      : recordData.mimeType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+                      ? 'Word (.docx)'
+                      : 'Plain Text'}
+                  </span>
+                </div>
+              )}
             </div>
 
             {/* Cryptographic Integrity Callout */}
@@ -209,10 +252,10 @@ export default function ViewRecordModal({ isOpen, onClose, record }) {
                 alignItems: 'center',
                 gap: '8px',
                 padding: '8px 14px',
-                backgroundColor: 'var(--color-success-bg)',
+                backgroundColor: integrityVerified ? 'var(--color-success-bg)' : 'rgba(239, 68, 68, 0.1)',
                 borderRadius: 'var(--radius-sm)',
                 fontSize: '0.75rem',
-                color: 'var(--color-success-dark)',
+                color: integrityVerified ? 'var(--color-success-dark)' : 'var(--color-danger)',
                 marginBottom: '14px',
               }}
             >
@@ -220,7 +263,15 @@ export default function ViewRecordModal({ isOpen, onClose, record }) {
                 <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" strokeLinecap="round" strokeLinejoin="round"/>
               </svg>
               <span>
-                <strong>Integrity Verified:</strong> Decrypted plaintext matches the on-chain SHA-256 integrity hash stored in <code>RecordRegistry.sol</code>.
+                {integrityVerified ? (
+                  <>
+                    <strong>Integrity Verified:</strong> Decrypted content matches the on-chain SHA-256 integrity hash stored in <code>RecordRegistry.sol</code>.
+                  </>
+                ) : (
+                  <>
+                    <strong>Integrity Mismatch:</strong> Decrypted content does not match the on-chain SHA-256 hash.
+                  </>
+                )}
               </span>
             </div>
 
@@ -238,7 +289,15 @@ export default function ViewRecordModal({ isOpen, onClose, record }) {
               >
                 Decrypted Medical Content
               </div>
-              <RecordContentViewer content={recordData.content} label={recordData.label || record?.label} />
+              <RecordContentViewer
+                content={recordData.content}
+                encoding={recordData.encoding}
+                mimeType={recordData.mimeType}
+                originalFileName={recordData.originalFileName}
+                sizeBytes={recordData.sizeBytes}
+                label={recordData.label || record?.label}
+                onDownload={handleDownloadClick}
+              />
             </div>
           </div>
         )}

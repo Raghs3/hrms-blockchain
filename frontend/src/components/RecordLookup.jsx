@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import LoadingState from './LoadingState';
-import RecordContentViewer, { downloadRecordContent } from './RecordContentViewer';
+import RecordContentViewer, { downloadRecordContent, verifyRecordIntegrity } from './RecordContentViewer';
 import { checkAccess, viewRecord } from '../api/records';
 
 /**
@@ -29,6 +29,7 @@ export default function RecordLookup({ sessionHistory }) {
   const [viewLoading, setViewLoading] = useState(false);
   const [viewError, setViewError] = useState('');
   const [recordData, setRecordData] = useState(null); // { recordId, label, content } | null
+  const [integrityVerified, setIntegrityVerified] = useState(true);
   const [copiedOwner, setCopiedOwner] = useState(false);
 
   // Sync if search params change
@@ -81,6 +82,27 @@ export default function RecordLookup({ sessionHistory }) {
     setRecordData(null);
   }
 
+  function handleDownloadClick() {
+    if (!recordData?.content) return;
+    const defaultExt =
+      recordData.mimeType === 'application/pdf'
+        ? '.pdf'
+        : recordData.mimeType === 'image/png'
+        ? '.png'
+        : recordData.mimeType === 'image/jpeg'
+        ? '.jpg'
+        : recordData.mimeType === 'application/msword'
+        ? '.doc'
+        : recordData.mimeType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+        ? '.docx'
+        : '.txt';
+
+    const filename =
+      recordData.originalFileName ||
+      `${(recordData.label || 'record').replace(/[^a-zA-Z0-9_-]/g, '_')}${defaultExt}`;
+    downloadRecordContent(recordData.content, filename, recordData.mimeType, recordData.encoding);
+  }
+
   async function handleCheckAccess(e) {
     e.preventDefault();
     setValidationError('');
@@ -129,12 +151,17 @@ export default function RecordLookup({ sessionHistory }) {
     setViewError('');
     setRecordData(null);
     setViewLoading(true);
+    setIntegrityVerified(true);
 
     const trimmed = recordId.trim();
 
     try {
       const data = await viewRecord(trimmed);
       setRecordData(data);
+      if (data?.fileHash) {
+        const result = await verifyRecordIntegrity(data.content, data.encoding, data.fileHash);
+        setIntegrityVerified(result.verified);
+      }
       recordViewSuccess();
     } catch (err) {
       const isAccessDenied = err?.status === 403 || err?.code === 'ACCESS_DENIED';
@@ -377,7 +404,7 @@ export default function RecordLookup({ sessionHistory }) {
                 <button
                   type="button"
                   className="btn btn-secondary btn-sm"
-                  onClick={() => downloadRecordContent(recordData.content, `${(recordData.label || 'record').replace(/[^a-zA-Z0-9_-]/g, '_')}.txt`)}
+                  onClick={handleDownloadClick}
                   id="doctor-download-record-btn"
                   title="Download decrypted file"
                 >
@@ -402,17 +429,25 @@ export default function RecordLookup({ sessionHistory }) {
                 alignItems: 'center',
                 gap: '8px',
                 padding: '8px 16px',
-                backgroundColor: 'var(--color-success-bg)',
+                backgroundColor: integrityVerified ? 'var(--color-success-bg)' : 'rgba(239, 68, 68, 0.1)',
                 borderBottom: '1px solid rgba(16, 185, 129, 0.2)',
                 fontSize: '0.75rem',
-                color: 'var(--color-success-dark)',
+                color: integrityVerified ? 'var(--color-success-dark)' : 'var(--color-danger)',
               }}
             >
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" aria-hidden="true">
                 <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" strokeLinecap="round" strokeLinejoin="round"/>
               </svg>
               <span>
-                <strong>Integrity Verified:</strong> Plaintext matches on-chain SHA-256 file hash in <code>RecordRegistry.sol</code>
+                {integrityVerified ? (
+                  <>
+                    <strong>Integrity Verified:</strong> Decrypted content matches on-chain SHA-256 file hash in <code>RecordRegistry.sol</code>
+                  </>
+                ) : (
+                  <>
+                    <strong>Integrity Mismatch:</strong> Decrypted content does not match on-chain SHA-256 hash.
+                  </>
+                )}
               </span>
             </div>
 
@@ -429,7 +464,15 @@ export default function RecordLookup({ sessionHistory }) {
               >
                 Record Content
               </div>
-              <RecordContentViewer content={recordData.content} label={recordData.label} />
+              <RecordContentViewer
+                content={recordData.content}
+                encoding={recordData.encoding}
+                mimeType={recordData.mimeType}
+                originalFileName={recordData.originalFileName}
+                sizeBytes={recordData.sizeBytes}
+                label={recordData.label}
+                onDownload={handleDownloadClick}
+              />
             </div>
           </div>
         )}

@@ -246,6 +246,8 @@ router.get("/records/:id/view", requireAuth(), parseRecordId, wrap(async (req, r
     recordId: recordIdStr,
     owner: record.owner,
     label: store.getLabel(recordIdStr),
+    fileHash: record.fileHash,
+    cid: record.cid,
     content: isText ? plaintext.toString("utf8") : plaintext.toString("base64"),
     encoding: isText ? "utf8" : "base64",
     mimeType: meta.mimeType || "text/plain",
