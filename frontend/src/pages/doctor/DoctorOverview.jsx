@@ -16,6 +16,40 @@ function truncate(str, head = 6, tail = 4) {
   return `${str.slice(0, head)}...${str.slice(-tail)}`;
 }
 
+function getFileBadgeInfo(mimeType) {
+  if (!mimeType || mimeType === 'text/plain') {
+    return { label: 'Text', bg: '#f1f5f9', color: '#475569', border: '#cbd5e1' };
+  }
+  if (mimeType === 'application/pdf') {
+    return { label: 'PDF', bg: '#fef2f2', color: '#dc2626', border: '#fecaca' };
+  }
+  if (mimeType.startsWith('image/')) {
+    return { label: 'Image', bg: '#f0fdf4', color: '#16a34a', border: '#bbf7d0' };
+  }
+  if (
+    mimeType === 'application/msword' ||
+    mimeType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+  ) {
+    return { label: 'Word', bg: '#eff6ff', color: '#2563eb', border: '#bfdbfe' };
+  }
+  return { label: 'File', bg: '#f1f5f9', color: '#475569', border: '#cbd5e1' };
+}
+
+function truncateFileName(name, maxLen = 22) {
+  if (!name) return '';
+  if (name.length <= maxLen) return name;
+  const extIndex = name.lastIndexOf('.');
+  if (extIndex > 0 && name.length - extIndex <= 6) {
+    const ext = name.slice(extIndex);
+    const base = name.slice(0, extIndex);
+    const keepChars = maxLen - ext.length - 3;
+    if (keepChars > 3) {
+      return `${base.slice(0, keepChars)}...${ext}`;
+    }
+  }
+  return `${name.slice(0, maxLen - 3)}...`;
+}
+
 /**
  * DoctorOverview - /doctor
  * Doctor portal overview dashboard displaying active session metrics,
@@ -246,9 +280,43 @@ export default function DoctorOverview() {
                       <tr key={rec.recordId}>
                         {/* Record label & ID */}
                         <td>
-                          <div className="table-cell-primary">{rec.label || 'Medical Record'}</div>
-                          <div className="table-cell-secondary" style={{ fontFamily: 'ui-monospace, monospace' }}>
-                            ID: #{rec.recordId}
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                            <span className="table-cell-primary">{rec.label || 'Medical Record'}</span>
+                            {(() => {
+                              const badge = getFileBadgeInfo(rec.mimeType);
+                              return (
+                                <span
+                                  className="badge"
+                                  style={{
+                                    fontSize: '0.675rem',
+                                    padding: '1px 6px',
+                                    backgroundColor: badge.bg,
+                                    color: badge.color,
+                                    border: `1px solid ${badge.border}`,
+                                    fontWeight: 600,
+                                  }}
+                                  title={`Format: ${rec.mimeType || 'text/plain'}`}
+                                >
+                                  {badge.label}
+                                </span>
+                              );
+                            })()}
+                          </div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', marginTop: '2px' }}>
+                            <span className="table-cell-secondary" style={{ fontFamily: 'ui-monospace, monospace' }}>
+                              ID: #{rec.recordId}
+                            </span>
+                            {rec.originalFileName && (
+                              <span
+                                style={{
+                                  fontSize: '0.725rem',
+                                  color: 'var(--color-text-muted)',
+                                }}
+                                title={`Original File: ${rec.originalFileName}`}
+                              >
+                                📄 {truncateFileName(rec.originalFileName)}
+                              </span>
+                            )}
                           </div>
                         </td>
 

@@ -12,6 +12,40 @@ function truncateHash(hash) {
   return `${hash.slice(0, 8)}...${hash.slice(-6)}`;
 }
 
+function getFileBadgeInfo(mimeType) {
+  if (!mimeType || mimeType === 'text/plain') {
+    return { label: 'Text', bg: '#f1f5f9', color: '#475569', border: '#cbd5e1' };
+  }
+  if (mimeType === 'application/pdf') {
+    return { label: 'PDF', bg: '#fef2f2', color: '#dc2626', border: '#fecaca' };
+  }
+  if (mimeType.startsWith('image/')) {
+    return { label: 'Image', bg: '#f0fdf4', color: '#16a34a', border: '#bbf7d0' };
+  }
+  if (
+    mimeType === 'application/msword' ||
+    mimeType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+  ) {
+    return { label: 'Word', bg: '#eff6ff', color: '#2563eb', border: '#bfdbfe' };
+  }
+  return { label: 'File', bg: '#f1f5f9', color: '#475569', border: '#cbd5e1' };
+}
+
+function truncateFileName(name, maxLen = 22) {
+  if (!name) return '';
+  if (name.length <= maxLen) return name;
+  const extIndex = name.lastIndexOf('.');
+  if (extIndex > 0 && name.length - extIndex <= 6) {
+    const ext = name.slice(extIndex);
+    const base = name.slice(0, extIndex);
+    const keepChars = maxLen - ext.length - 3;
+    if (keepChars > 3) {
+      return `${base.slice(0, keepChars)}...${ext}`;
+    }
+  }
+  return `${name.slice(0, maxLen - 3)}...`;
+}
+
 /**
  * RecordTable - Patient's record list as a professional data table.
  *
@@ -129,11 +163,43 @@ export default function RecordTable({
               <tr key={record.recordId}>
                 {/* Record info */}
                 <td>
-                  <div className="table-cell-primary">{record.label || 'Untitled Record'}</div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                    <span className="table-cell-primary">{record.label || 'Untitled Record'}</span>
+                    {(() => {
+                      const badge = getFileBadgeInfo(record.mimeType);
+                      return (
+                        <span
+                          className="badge"
+                          style={{
+                            fontSize: '0.675rem',
+                            padding: '1px 6px',
+                            backgroundColor: badge.bg,
+                            color: badge.color,
+                            border: `1px solid ${badge.border}`,
+                            fontWeight: 600,
+                          }}
+                          title={`Format: ${record.mimeType || 'text/plain'}`}
+                        >
+                          {badge.label}
+                        </span>
+                      );
+                    })()}
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', marginTop: '2px' }}>
                     <span className="table-cell-secondary" style={{ fontFamily: 'Courier New, monospace' }}>
-                      ID: {record.recordId}
+                      ID: #{record.recordId}
                     </span>
+                    {record.originalFileName && (
+                      <span
+                        style={{
+                          fontSize: '0.725rem',
+                          color: 'var(--color-text-muted)',
+                        }}
+                        title={`Original File: ${record.originalFileName}`}
+                      >
+                        📄 {truncateFileName(record.originalFileName)}
+                      </span>
+                    )}
                     {mode !== 'records' && record.fileHash && (
                       <span
                         style={{
