@@ -140,41 +140,52 @@
 > `req.wallet` is derived from the authenticated account id (or demo name) on every request.
 
 ### `POST /records/upload`
-**File:** `routes.js:62`  
+**File:** `routes.js:109`  
 **Auth:** patient only  
-**Body:** `multipart/form-data` — `file` (required, max 10 MB), `label` (optional string)
+**Body:** `multipart/form-data` — `file` (required, max 10 MB), `label` (optional string)  
+**Supported Extensions & Magic Bytes:**
+- `.txt` (valid UTF-8, no NUL bytes)
+- `.pdf` (starts with `%PDF`)
+- `.png` (starts with `89 50 4E 47`)
+- `.jpg` / `.jpeg` (starts with `FF D8 FF`)
+- `.doc` (starts with `D0 CF 11 E0`)
+- `.docx` (ZIP format starting with `PK 03 04` and containing `word/document.xml`)
 
 | Scenario | Status | Response |
 |---|---|---|
-| Success | 200 | `{ recordId, cid, txHash, uploadedAt }` |
-| No file | 400 | `{ error: "FILE_REQUIRED" }` |
+| Success | 200 | `{ recordId, cid, txHash, uploadedAt, mimeType, originalFileName, sizeBytes }` |
+| No file provided | 400 | `{ error: "FILE_REQUIRED" }` |
+| Empty file (0 bytes) | 400 | `{ error: "FILE_EMPTY" }` |
+| File exceeds 10 MB | 400 | `{ error: "FILE_TOO_LARGE" }` |
+| Disallowed extension | 400 | `{ error: "UNSUPPORTED_FILE_TYPE" }` |
+| Content does not match extension | 400 | `{ error: "FILE_CONTENT_MISMATCH" }` |
 | Not a patient | 403 | `{ error: "WRONG_ROLE" }` |
 | Not on-chain patient | 403 | `{ error: "NOT_A_PATIENT" }` |
 
-*File is AES-256-GCM encrypted before IPFS/local storage. CID + SHA-256 hash logged on-chain.*
+*File is AES-256-GCM encrypted before IPFS/local storage. Raw byte SHA-256 hash and IPFS CID are anchored on-chain.*
 
 ---
 
 ### `GET /records/mine`
-**File:** `routes.js:132`  
+**File:** `routes.js:149`  
 **Auth:** patient only
 
 | Scenario | Status | Response |
 |---|---|---|
-| Success | 200 | `[{ recordId, label, uploadedAt, authorizedDoctors: [{ walletAddress, name }], cid, fileHash }]` |
+| Success | 200 | `[{ recordId, label, uploadedAt, authorizedDoctors: [{ walletAddress, name }], cid, fileHash, mimeType, originalFileName, sizeBytes }]` |
 | Not a patient | 403 | `{ error: "WRONG_ROLE" }` |
 
-*Additive field: `fileHash` (bytes32 hex string) is included for on-chain integrity verification.*
+*Additive fields: `fileHash` (bytes32 hex string), `mimeType` (string, defaults to "text/plain"), `originalFileName` (string|null), and `sizeBytes` (number|null).*
 
 ---
 
 ### `GET /records/shared-with-me`
-**File:** `routes.js:149`  
+**File:** `routes.js:167`  
 **Auth:** doctor only
 
 | Scenario | Status | Response |
 |---|---|---|
-| Success | 200 | `[{ recordId: string, owner: string, ownerName: string, label: string, uploadedAt: string, cid: string, fileHash: string }]` |
+| Success | 200 | `[{ recordId: string, owner: string, ownerName: string, label: string, uploadedAt: string, cid: string, fileHash: string, mimeType: string, originalFileName: string|null, sizeBytes: number|null }]` |
 | Unauthenticated | 401 | `{ error: "INVALID_TOKEN" }` |
 | Wrong role (patient/admin) | 403 | `{ error: "WRONG_ROLE" }` |
 | RPC failure | 503 | `{ error: "RPC_ERROR", message: string }` |
@@ -184,7 +195,7 @@
 ---
 
 ### `POST /records/:id/grant`
-**File:** `routes.js:185`  
+**File:** `routes.js:203`  
 **Auth:** patient only  
 **Body:** `{ doctorAddress: string (wallet address) }`
 
@@ -199,7 +210,7 @@
 ---
 
 ### `POST /records/:id/revoke`
-**File:** `routes.js:191`  
+**File:** `routes.js:209`  
 **Auth:** patient only  
 **Body:** `{ doctorAddress: string (wallet address) }`
 
@@ -213,7 +224,7 @@
 ---
 
 ### `GET /records/:id/access-check`
-**File:** `routes.js:197`  
+**File:** `routes.js:215`  
 **Auth:** any authenticated user
 
 | Scenario | Status | Response |
@@ -224,18 +235,20 @@
 ---
 
 ### `GET /records/:id/view`
-**File:** `routes.js:209`  
+**File:** `routes.js:226`  
 **Auth:** any authenticated user (contract enforces access)
 
 | Scenario | Status | Response |
 |---|---|---|
-| Success | 200 | `{ recordId, owner, label, content: string }` |
+| Success | 200 | `{ recordId, owner, label, fileHash, cid, content: string, encoding: "utf8"|"base64", mimeType: string, originalFileName: string|null, sizeBytes: number|null }` |
 | Access denied by contract | 403 | `{ error: "ACCESS_DENIED" }` |
 | Record not found | 404 | `{ error: "RECORD_NOT_FOUND" }` |
 | Integrity check failed | 500 | `{ error: "INTEGRITY_CHECK_FAILED" }` |
 
-*Additive field: `owner` (wallet address of the patient who owns the record) is returned in the response.*
-*The blockchain itself gates access; the backend cannot serve a file the chain has not approved.*
+*Encoding & Content behavior:*
+- For `text/plain` records: `content` is a standard UTF-8 string, `encoding: "utf8"`.
+- For binary formats (`pdf`, `png`, `jpg`, `doc`, `docx`): `content` is base64 encoded, `encoding: "base64"`.
+- On-chain integrity: The server validates SHA-256 hash against `record.fileHash` on raw decrypted bytes before returning. The browser also validates SHA-256 over raw bytes (decoded from base64 or encoded from text).
 
 ---
 
@@ -272,6 +285,9 @@
   "doctorName": "Dr. Kapoor",
   "cid": "bafy...",
   "fileHash": "0x560f...",
+  "mimeType": "application/pdf" | "text/plain" | null,
+  "originalFileName": "lab_results.pdf" | null,
+  "sizeBytes": 2048 | null,
   "txHash": "0x8129...",
   "blockNumber": 12,
   "timestamp": "2026-11-16T18:57:41.000Z"

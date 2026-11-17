@@ -112,12 +112,13 @@ To satisfy clinical ethics while maintaining decentralization:
 
 ## 7. Supported File Types & Payload Dimensions
 
-### Current Scope
-- Supported Formats: `.txt`, `.md`, `.csv`, `.json`
-- Maximum File Size: 10 MB per record
+### Current Scope & Capabilities
+- **Supported Formats:** `.pdf`, `.png`, `.jpg` / `.jpeg`, `.doc`, `.docx`, `.txt`.
+- **Validation:** Enforced by file extension whitelist AND file magic byte inspection (`%PDF`, `89 50 4E 47`, `FF D8 FF`, `D0 CF 11 E0`, `PK 03 04` with `word/document.xml`, UTF-8).
+- **Maximum File Size:** 10 MB per record (enforced client-side and server-side via Multer `LIMIT_FILE_SIZE`).
 
-### Reason for Constraint
-- Medical imaging data (e.g., DICOM series, CT scans, 3D volumetric MRI) frequently ranges from 200 MB to 2 GB per patient session.
-- Streaming multi-gigabyte binary files through client-side Web Crypto APIs causes browser memory thrashing and thread blocking.
-- The current implementation intentionally limits uploads to text and structured health summaries to guarantee instant decryption, zero-lag rendering in the `<pre>` viewer, and reliable demonstration of the on-chain access control lifecycle.
+### Viewer Capabilities & Architectural Boundaries
+- **Inline Rendering:** Images (`.png`, `.jpg`) and PDF documents (`.pdf`) render directly in the browser via ephemeral Blob URLs with instant revocation upon viewer unmount.
+- **No Inline DOC / DOCX Preview:** Microsoft Word documents are presented as an authenticated document card with file metadata and a direct decrypted download action. Inline rendering for DOC/DOCX is intentionally omitted to avoid bundling heavy Office rendering runtimes (such as LibreOffice WASM) which compromise bundle size, memory footprint, and client security.
+- **Large Volumetric Datasets (DICOM):** High-resolution medical imaging series (CT / 3D volumetric MRI) exceeding 10 MB are outside the scope of single-file IPFS pinning and require dedicated DICOM WADO/PACS chunked streaming gateways.
 
