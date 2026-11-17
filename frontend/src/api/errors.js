@@ -19,6 +19,10 @@ export const ERROR_MESSAGES = {
 
   // Record / consent error codes (from routes.js)
   FILE_REQUIRED: 'Please select a file to upload.',
+  FILE_EMPTY: 'The selected file is empty. Please select a valid file with content.',
+  FILE_TOO_LARGE: 'File exceeds the 10 MB limit. Please select a smaller file.',
+  UNSUPPORTED_FILE_TYPE: 'Unsupported file type. Supported formats are PDF, PNG, JPG/JPEG, DOC, DOCX, and TXT.',
+  FILE_CONTENT_MISMATCH: 'File content does not match its file extension. Please verify the file integrity.',
   NOT_A_PATIENT: 'Only registered patients can perform this action.',
   NOT_A_DOCTOR: 'The specified address is not a registered doctor.',
   NOT_RECORD_OWNER: 'You do not own this record and cannot modify its permissions.',

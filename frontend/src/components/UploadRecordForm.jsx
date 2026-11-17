@@ -1,16 +1,36 @@
 import { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { uploadRecord } from '../api/records';
+import { getErrorMessage } from '../api/errors';
 import { useToast } from '../context/ToastContext';
 import { useAuditTrail } from '../context/AuditTrailContext';
 
-const ALLOWED_EXTENSIONS = ['.txt', '.md', '.csv', '.json'];
+const ALLOWED_EXTENSIONS = ['.txt', '.pdf', '.png', '.jpg', '.jpeg', '.doc', '.docx'];
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10 MB
 
-function isValidTextExtension(filename) {
+function isValidExtension(filename) {
   if (!filename) return false;
   const lower = filename.toLowerCase();
   return ALLOWED_EXTENSIONS.some((ext) => lower.endsWith(ext));
+}
+
+function formatFileSize(bytes) {
+  if (typeof bytes !== 'number' || isNaN(bytes)) return '0 B';
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
+}
+
+function getFileTypeDescription(filename) {
+  if (!filename) return 'Unknown';
+  const lower = filename.toLowerCase();
+  if (lower.endsWith('.pdf')) return 'PDF Document';
+  if (lower.endsWith('.png')) return 'PNG Image';
+  if (lower.endsWith('.jpg') || lower.endsWith('.jpeg')) return 'JPEG Image';
+  if (lower.endsWith('.doc')) return 'Word Document (.doc)';
+  if (lower.endsWith('.docx')) return 'Word Document (.docx)';
+  if (lower.endsWith('.txt')) return 'Plain Text';
+  return 'File';
 }
 
 function truncateHash(hash) {
@@ -53,8 +73,8 @@ export default function UploadRecordForm({ onSuccess }) {
     const selected = e.target.files?.[0];
     if (!selected) return;
 
-    if (!isValidTextExtension(selected.name)) {
-      setError('Demo supports text files only (.txt, .md, .csv, .json)');
+    if (!isValidExtension(selected.name)) {
+      setError('Unsupported file type. Supported formats are PDF, PNG, JPG/JPEG, DOC, DOCX, and TXT.');
       setFile(null);
       if (fileInputRef.current) fileInputRef.current.value = '';
       return;
@@ -97,8 +117,8 @@ export default function UploadRecordForm({ onSuccess }) {
       return;
     }
 
-    if (!isValidTextExtension(file.name)) {
-      setError('Demo supports text files only (.txt, .md, .csv, .json)');
+    if (!isValidExtension(file.name)) {
+      setError('Unsupported file type. Supported formats are PDF, PNG, JPG/JPEG, DOC, DOCX, and TXT.');
       return;
     }
 
@@ -147,7 +167,7 @@ export default function UploadRecordForm({ onSuccess }) {
         onSuccess(result);
       }
     } catch (err) {
-      let message = err?.message || 'Upload failed. Please try again.';
+      let message = getErrorMessage(err?.code, err?.message || 'Upload failed. Please try again.');
       if (err?.code === 'NOT_A_PATIENT') {
         message += ' Your wallet may not be registered on the current chain. Sign out and sign in again, then retry.';
       }
@@ -241,7 +261,7 @@ export default function UploadRecordForm({ onSuccess }) {
         <div>
           <h2>Upload Medical Record</h2>
           <p style={{ fontSize: '0.875rem', color: 'var(--color-text-muted)', marginTop: '4px' }}>
-            Supported formats: plain text (.txt, .md, .csv, .json) up to 10 MB.
+            Supported formats: PDF, PNG, JPG, DOC, DOCX, TXT up to 10 MB.
           </p>
         </div>
       </div>
@@ -266,15 +286,35 @@ export default function UploadRecordForm({ onSuccess }) {
               ref={fileInputRef}
               id="file-input-field"
               type="file"
-              accept=".txt,.md,.csv,.json"
+              accept=".txt,.pdf,.png,.jpg,.jpeg,.doc,.docx"
               onChange={handleFileChange}
               disabled={loading}
               className="form-control"
               style={{ padding: '8px' }}
             />
             {file && (
-              <div style={{ marginTop: '6px', fontSize: '0.8125rem', color: 'var(--color-text-muted)' }}>
-                Selected: <strong>{file.name}</strong> ({(file.size / 1024).toFixed(1)} KB)
+              <div
+                style={{
+                  marginTop: '8px',
+                  padding: '8px 12px',
+                  backgroundColor: 'var(--color-surface-subtle)',
+                  borderRadius: 'var(--radius-sm)',
+                  fontSize: '0.8125rem',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '12px',
+                  flexWrap: 'wrap',
+                }}
+              >
+                <div>
+                  File: <strong>{file.name}</strong>
+                </div>
+                <div>
+                  Type: <span className="badge" style={{ fontSize: '0.75rem', padding: '2px 6px' }}>{getFileTypeDescription(file.name)}</span>
+                </div>
+                <div>
+                  Size: <strong>{formatFileSize(file.size)}</strong>
+                </div>
               </div>
             )}
           </div>
