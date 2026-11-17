@@ -102,6 +102,11 @@ module.exports = {
     load();
     return data.accounts.filter((a) => a.role === "doctor" && a.status === "approved");
   },
+  // Every account (admin, doctors, patients), for the admin users pages.
+  listAccounts() {
+    load();
+    return data.accounts.slice();
+  },
   // Every doctor account whatever its status, for the admin roster.
   listDoctors() {
     load();

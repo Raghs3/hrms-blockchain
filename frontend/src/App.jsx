@@ -16,6 +16,8 @@ import DoctorsDirectory from './pages/patient/DoctorsDirectory';
 import DoctorOverview from './pages/doctor/DoctorOverview';
 import DoctorLookupPage from './pages/doctor/DoctorLookupPage';
 import AdminDashboard from './pages/admin/AdminDashboard';
+import AdminUsers from './pages/admin/AdminUsers';
+import AdminAudit from './pages/admin/AdminAudit';
 import Profile from './pages/Profile';
 import './styles/global.css';
 
@@ -146,6 +148,39 @@ export default function App() {
               element={
                 <ProtectedRoute requiredRole="admin">
                   <AdminDashboard />
+                </ProtectedRoute>
+              }
+            />
+            {/* key= makes React remount the page per route, so filters reset between views */}
+            <Route
+              path="/admin/users"
+              element={
+                <ProtectedRoute requiredRole="admin">
+                  <AdminUsers key="all" view="all" />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/admin/doctors"
+              element={
+                <ProtectedRoute requiredRole="admin">
+                  <AdminUsers key="doctor" view="doctor" />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/admin/patients"
+              element={
+                <ProtectedRoute requiredRole="admin">
+                  <AdminUsers key="patient" view="patient" />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/admin/audit"
+              element={
+                <ProtectedRoute requiredRole="admin">
+                  <AdminAudit />
                 </ProtectedRoute>
               }
             />

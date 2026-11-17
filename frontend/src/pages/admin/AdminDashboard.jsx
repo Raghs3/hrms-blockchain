@@ -3,7 +3,6 @@ import { Link } from 'react-router-dom';
 import Layout from '../../components/Layout';
 import LoadingState from '../../components/LoadingState';
 import EmptyState from '../../components/EmptyState';
-import AuditTrail from '../../components/AuditTrail';
 import { useAuth } from '../../context/AuthContext';
 import useDocumentTitle from '../../hooks/useDocumentTitle';
 import api from '../../api/axios';
@@ -15,7 +14,7 @@ import api from '../../api/axios';
  */
 export default function AdminDashboard() {
   useDocumentTitle('Admin Portal');
-  const { name, email, userId, walletAddress } = useAuth();
+  const { name, email, walletAddress } = useAuth();
 
   const [doctorEmail, setDoctorEmail] = useState('doctor@demo.local');
   const [copiedCmd, setCopiedCmd] = useState(false);
@@ -32,11 +31,8 @@ export default function AdminDashboard() {
   const [actionSuccess, setActionSuccess] = useState('');
   const [copiedAddress, setCopiedAddress] = useState('');
 
-  // Practitioner roster (all statuses) with disable / re-enable actions
-  const [allDoctors, setAllDoctors] = useState([]);
-  const [rosterError, setRosterError] = useState('');
-  const [rosterNotice, setRosterNotice] = useState(null); // { kind: 'success' | 'error', text }
-  const [confirmDisableId, setConfirmDisableId] = useState(null);
+  // Headline numbers for the overview cards (full lists live on the Users pages)
+  const [userCounts, setUserCounts] = useState(null);
 
   const approvalCommand = `npm run approve-doctor -- ${doctorEmail.trim() || '<email>'}`;
 
@@ -53,63 +49,32 @@ export default function AdminDashboard() {
     }
   }, []);
 
-  const fetchAllDoctors = useCallback(async () => {
-    setRosterError('');
+  const fetchUserCounts = useCallback(async () => {
     try {
-      const res = await api.get('/admin/doctors');
-      setAllDoctors(Array.isArray(res.data?.doctors) ? res.data.doctors : []);
-    } catch (err) {
-      setRosterError(err?.message || 'Failed to load practitioner accounts.');
+      const res = await api.get('/admin/users');
+      const list = Array.isArray(res.data?.users) ? res.data.users : [];
+      const doctors = list.filter((u) => u.role === 'doctor');
+      const patients = list.filter((u) => u.role === 'patient');
+      setUserCounts({
+        doctorsApproved: doctors.filter((d) => d.status === 'approved').length,
+        doctorsPending: doctors.filter((d) => d.status === 'pending').length,
+        doctorsDisabled: doctors.filter((d) => d.status === 'rejected').length,
+        patients: patients.length,
+        records: patients.reduce((sum, p) => sum + (p.recordCount || 0), 0),
+      });
+    } catch {
+      setUserCounts(null);
     }
   }, []);
 
   const refreshDoctorLists = useCallback(
-    () => Promise.all([fetchPendingDoctors(), fetchAllDoctors()]),
-    [fetchPendingDoctors, fetchAllDoctors]
+    () => Promise.all([fetchPendingDoctors(), fetchUserCounts()]),
+    [fetchPendingDoctors, fetchUserCounts]
   );
 
   useEffect(() => {
     refreshDoctorLists();
   }, [refreshDoctorLists]);
-
-  // Disable an approved doctor (same backend call as rejecting an application): the
-  // account can no longer log in and any open session stops working on its next request.
-  async function handleDisable(doc) {
-    setActionLoading((prev) => ({ ...prev, [doc.id]: 'disabling' }));
-    setRosterNotice(null);
-    try {
-      await api.post(`/admin/doctors/${encodeURIComponent(doc.id)}/reject`);
-      setRosterNotice({ kind: 'success', text: `Dr. ${doc.name} (${doc.email}) has been disabled. They can no longer sign in or view records.` });
-      setConfirmDisableId(null);
-      await refreshDoctorLists();
-    } catch (err) {
-      setRosterNotice({ kind: 'error', text: err?.message || `Failed to disable ${doc.email}.` });
-    } finally {
-      setActionLoading((prev) => {
-        const next = { ...prev };
-        delete next[doc.id];
-        return next;
-      });
-    }
-  }
-
-  async function handleReenable(doc) {
-    setActionLoading((prev) => ({ ...prev, [doc.id]: 'enabling' }));
-    setRosterNotice(null);
-    try {
-      await api.post(`/admin/doctors/${encodeURIComponent(doc.id)}/approve`);
-      setRosterNotice({ kind: 'success', text: `Dr. ${doc.name} (${doc.email}) has been re-enabled.` });
-      await refreshDoctorLists();
-    } catch (err) {
-      setRosterNotice({ kind: 'error', text: err?.message || `Failed to re-enable ${doc.email}.` });
-    } finally {
-      setActionLoading((prev) => {
-        const next = { ...prev };
-        delete next[doc.id];
-        return next;
-      });
-    }
-  }
 
   async function handleApprove(doc) {
     const id = doc.id || doc.email;
@@ -591,165 +556,40 @@ export default function AdminDashboard() {
         </div>
       </details>
 
-      {/* System Staff Roster */}
-      <div className="card" style={{ marginTop: '24px' }}>
-        <div className="card-header">
-          <div>
-            <h2>Verified System Accounts Roster</h2>
-            <p style={{ fontSize: '0.875rem', color: 'var(--color-text-muted)', marginTop: '4px' }}>
-              Practitioner accounts and their status. Disabling a doctor blocks their sign-in and any open
-              session immediately; their on-chain role is permanent but the backend refuses to act for them.
-            </p>
-          </div>
-        </div>
-
-        {rosterNotice && (
-          <div
-            className={rosterNotice.kind === 'success' ? 'success-state' : 'error-state'}
-            role={rosterNotice.kind === 'success' ? 'status' : 'alert'}
-            style={{ margin: '16px 20px 0' }}
-            id="admin-roster-notice"
-          >
-            <span>{rosterNotice.text}</span>
-          </div>
-        )}
-        {rosterError && (
-          <div className="error-state" role="alert" style={{ margin: '16px 20px 0' }}>
-            <span>{rosterError}</span>
-          </div>
-        )}
-
-        <div style={{ overflow: 'hidden' }}>
-          <div className="table-wrapper">
-            <table className="data-table" aria-label="System staff accounts">
-              <thead>
-                <tr>
-                  <th scope="col">Name & Role</th>
-                  <th scope="col">Email Address</th>
-                  <th scope="col">On-Chain Role</th>
-                  <th scope="col">Status</th>
-                  <th scope="col" style={{ textAlign: 'right' }}>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr>
-                  <td>
-                    <div className="table-cell-primary">{name || 'Admin User'}</div>
-                    <div className="table-cell-secondary" style={{ fontFamily: 'ui-monospace, monospace' }}>
-                      ID: {userId || 'u_admin'}
-                    </div>
-                  </td>
-                  <td>
-                    <div className="table-cell-primary">{email || 'admin@demo.local'}</div>
-                  </td>
-                  <td>
-                    <span className="badge" style={{ backgroundColor: 'var(--color-accent-subtle)', color: 'var(--color-accent)' }}>
-                      DEFAULT_ADMIN_ROLE
-                    </span>
-                  </td>
-                  <td>
-                    <span className="badge badge-authorized">Approved</span>
-                  </td>
-                  <td />
-                </tr>
-
-                {allDoctors.map((doc) => {
-                  const isDisabled = doc.status === 'rejected';
-                  const isPending = doc.status === 'pending';
-                  const busy = actionLoading[doc.id];
-                  const confirming = confirmDisableId === doc.id;
-                  const safeId = (doc.id || doc.email || 'doc').replace(/[^a-zA-Z0-9]/g, '-');
-
-                  return (
-                    <tr key={doc.id || doc.email} data-doctor-status={doc.status}>
-                      <td>
-                        <div className="table-cell-primary">{doc.name || 'Doctor'}</div>
-                        <div className="table-cell-secondary" style={{ fontFamily: 'ui-monospace, monospace' }}>
-                          Practitioner
-                        </div>
-                      </td>
-                      <td>
-                        <div className="table-cell-primary">{doc.email}</div>
-                      </td>
-                      <td>
-                        {isPending ? (
-                          <span className="badge" style={{ backgroundColor: '#fef3c7', color: '#b45309' }}>
-                            Not registered
-                          </span>
-                        ) : (
-                          <span className="badge badge-authorized">DOCTOR_ROLE (Registered)</span>
-                        )}
-                      </td>
-                      <td>
-                        {isDisabled ? (
-                          <span className="badge badge-revoked">Disabled</span>
-                        ) : isPending ? (
-                          <span className="badge" style={{ backgroundColor: '#fef3c7', color: '#b45309' }}>
-                            Pending Approval
-                          </span>
-                        ) : (
-                          <span className="badge badge-authorized">Approved</span>
-                        )}
-                      </td>
-                      <td style={{ textAlign: 'right' }}>
-                        {isDisabled ? (
-                          <button
-                            type="button"
-                            className="btn btn-secondary btn-sm"
-                            onClick={() => handleReenable(doc)}
-                            disabled={Boolean(busy)}
-                            id={`reenable-doctor-${safeId}`}
-                          >
-                            {busy === 'enabling' ? 'Re-enabling...' : 'Re-enable'}
-                          </button>
-                        ) : isPending ? (
-                          <span style={{ fontSize: '0.8125rem', color: 'var(--color-text-muted)' }}>
-                            Use the approval table above
-                          </span>
-                        ) : confirming ? (
-                          <div style={{ display: 'inline-flex', gap: '8px', alignItems: 'center' }}>
-                            <button
-                              type="button"
-                              className="btn btn-danger-outline btn-sm"
-                              onClick={() => handleDisable(doc)}
-                              disabled={Boolean(busy)}
-                              id={`confirm-disable-doctor-${safeId}`}
-                            >
-                              {busy === 'disabling' ? 'Disabling...' : 'Confirm disable'}
-                            </button>
-                            <button
-                              type="button"
-                              className="btn btn-secondary btn-sm"
-                              onClick={() => setConfirmDisableId(null)}
-                              disabled={Boolean(busy)}
-                            >
-                              Cancel
-                            </button>
-                          </div>
-                        ) : (
-                          <button
-                            type="button"
-                            className="btn btn-danger-outline btn-sm"
-                            onClick={() => setConfirmDisableId(doc.id)}
-                            disabled={Boolean(busy)}
-                            id={`disable-doctor-${safeId}`}
-                          >
-                            Disable
-                          </button>
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </div>
-
-      {/* Comprehensive System Audit Trail (All Events) */}
+      {/* Where to manage things */}
       <div style={{ marginTop: '24px' }}>
-        <AuditTrail title="Comprehensive System Audit Trail (All On-Chain Events)" />
+        <h2 style={{ fontSize: '1.0625rem', marginBottom: '12px' }}>Manage the system</h2>
+        <div className="summary-grid">
+          <Link to="/admin/doctors" className="summary-card" style={{ textDecoration: 'none', color: 'inherit' }} id="admin-card-doctors">
+            <div className="summary-card-header">
+              <span className="summary-card-label">Doctors</span>
+            </div>
+            <div className="summary-card-value">
+              {userCounts ? userCounts.doctorsApproved + userCounts.doctorsPending + userCounts.doctorsDisabled : '—'}
+            </div>
+            <div className="summary-card-sub">
+              {userCounts
+                ? `${userCounts.doctorsApproved} approved · ${userCounts.doctorsPending} pending · ${userCounts.doctorsDisabled} disabled`
+                : 'Approve, disable or re-enable doctors'}
+            </div>
+          </Link>
+          <Link to="/admin/patients" className="summary-card" style={{ textDecoration: 'none', color: 'inherit' }} id="admin-card-patients">
+            <div className="summary-card-header">
+              <span className="summary-card-label">Patients</span>
+            </div>
+            <div className="summary-card-value">{userCounts ? userCounts.patients : '—'}</div>
+            <div className="summary-card-sub">
+              {userCounts ? `${userCounts.records} records stored in total` : 'See every registered patient'}
+            </div>
+          </Link>
+          <Link to="/admin/audit" className="summary-card" style={{ textDecoration: 'none', color: 'inherit' }} id="admin-card-audit">
+            <div className="summary-card-header">
+              <span className="summary-card-label">Activity history</span>
+            </div>
+            <div className="summary-card-value" style={{ fontSize: '1.25rem' }}>Who did what</div>
+            <div className="summary-card-sub">Uploads, access given and removed</div>
+          </Link>
+        </div>
       </div>
     </Layout>
   );
