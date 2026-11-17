@@ -1,5 +1,7 @@
 // End-to-end rehearsal of the demo: upload -> grant -> view -> revoke -> deny.
-// Needs a running Hardhat node with contracts deployed, and the backend running.
+// Needs a running Hardhat node with contracts deployed, the backend running, and
+// the demo accounts seeded (`npm run seed` -- the admin account approves the doctor).
+// Registers a fresh patient + doctor each run, so it can be re-run without cleanup.
 const BASE = process.env.API_URL || "http://localhost:4000";
 
 async function call(method, path, { token, json, form } = {}) {
@@ -17,8 +19,26 @@ function check(label, condition, detail) {
 
 async function main() {
   const suffix = Date.now();
-  const patient = (await call("POST", "/auth/login", { json: { name: `Riya ${suffix}`, role: "patient" } })).body;
-  const doctor = (await call("POST", "/auth/login", { json: { name: `Dr Kapoor ${suffix}`, role: "doctor" } })).body;
+  const password = "DemoFlow1234!";
+
+  // Patient registers and gets a token straight away.
+  const patientReg = (await call("POST", "/auth/register", {
+    json: { name: `Riya ${suffix}`, email: `riya.${suffix}@demoflow.local`, password, role: "patient" },
+  })).body;
+  const patient = { token: patientReg.token, walletAddress: patientReg.user?.walletAddress };
+
+  // Doctor registers as "pending"; the seeded admin approves them, then they log in.
+  const doctorReg = (await call("POST", "/auth/register", {
+    json: { name: `Dr Kapoor ${suffix}`, email: `kapoor.${suffix}@demoflow.local`, password, role: "doctor" },
+  })).body;
+  const admin = (await call("POST", "/auth/login", { json: { email: "admin@demo.local", password: "Admin1234!" } })).body;
+  check("admin logged in (run `npm run seed` first if this fails)", Boolean(admin.token), admin.token ? undefined : admin);
+  const approval = await call("POST", `/admin/doctors/${doctorReg.user?.id}/approve`, { token: admin.token });
+  check("admin approves the doctor", approval.status === 200, approval.body);
+  const doctorLogin = (await call("POST", "/auth/login", {
+    json: { email: `kapoor.${suffix}@demoflow.local`, password },
+  })).body;
+  const doctor = { token: doctorLogin.token, walletAddress: doctorLogin.user?.walletAddress };
   check("patient and doctor logged in", patient.token && doctor.token);
 
   const secret = "Hemoglobin: 13.8 g/dL, WBC: 6.2k/uL. Confidential.";
@@ -41,7 +61,7 @@ async function main() {
   check("4. doctor views record, content decrypted intact", r.status === 200 && r.body.content === secret, r.body);
 
   r = await call("GET", "/records/mine", { token: patient.token });
-  check("   patient's list shows the doctor as authorized", r.body[0]?.authorizedDoctors?.[0]?.walletAddress === doctor.walletAddress, r.body);
+  check("   patient's list shows the doctor as authorized", r.body.find((rec) => rec.recordId === id)?.authorizedDoctors?.[0]?.walletAddress === doctor.walletAddress, r.body);
 
   r = await call("POST", `/records/${id}/revoke`, { token: patient.token, json: { doctorAddress: doctor.walletAddress } });
   check("5. patient revokes access", r.body.status === "revoked", r.body);
