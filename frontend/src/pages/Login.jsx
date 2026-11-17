@@ -310,7 +310,13 @@ export default function Login() {
               )}
 
               {error && (
-                <div className="error-state" role="alert" style={{ marginBottom: '20px' }}>
+                <div
+                  className="error-state"
+                  role="alert"
+                  style={{ marginBottom: '20px' }}
+                  data-testid="auth-error-alert"
+                  id="auth-error-banner"
+                >
                   <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
                     <circle cx="8" cy="8" r="7" stroke="currentColor" strokeWidth="1.5" />
                     <path d="M8 5v4M8 11v.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
