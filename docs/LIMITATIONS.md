@@ -8,7 +8,7 @@ This document outlines the architectural boundaries, security considerations, an
 
 ### Technical Boundary
 In traditional web applications, database transactions complete in 5–50 milliseconds. In an EVM-based blockchain environment:
-- Every state-modifying action (`uploadRecord`, `grantAccess`, `revokeAccess`) requires broadcasting a signed transaction to the peer-to-peer network.
+- Every state-modifying action (`addRecord`, `grantAccess`, `revokeAccess`) requires broadcasting a signed transaction to the peer-to-peer network.
 - Transactions are batched into blocks by validators/miners according to network block times (12–15 seconds on Ethereum mainnet, 2 seconds on Polygon/Arbitrum, or on-demand on local Hardhat).
 - A transaction is not immutable until it receives sufficient block confirmations.
 
@@ -25,12 +25,12 @@ Storing arbitrary data in Ethereum contract storage (`SSTORE`) costs approximate
 
 ### Architectural Solution & Inherent Trade-offs
 HealthChain separates **access governance** from **data storage**:
-1. **On-Chain**: `HealthcareRegistry.sol` stores only metadata:
+1. **On-Chain**: `RecordRegistry.sol` stores only metadata (access roles live in `UserRegistry.sol`):
    - Record identifier (`uint256 recordId`)
    - IPFS Content Identifier (`string cid`)
-   - Cryptographic SHA-256 integrity checksum (`bytes32 dataHash`)
-   - Patient owner wallet address (`address patient`)
-   - Authorization lookup mapping (`mapping(address => bool) authorizedDoctors`)
+   - Cryptographic SHA-256 integrity checksum (`bytes32 fileHash`, computed over the unencrypted file)
+   - Patient owner wallet address (`address owner`)
+   - Authorization lookup mapping (`mapping(uint256 => mapping(address => bool)) authorizedAccess`)
 2. **Off-Chain**: The actual medical payload is encrypted with AES-256-GCM and pinned to IPFS nodes (or Pinata).
 
 ### Inherent Limitations
@@ -43,7 +43,7 @@ HealthChain separates **access governance** from **data storage**:
 
 ### Current Implementation
 - Records are encrypted at rest using AES-256-GCM with a symmetric secret key managed by the backend gateway.
-- When an authorized doctor requests a record view, the backend queries the blockchain (`hasAccess(recordId, doctorWallet)`). If verified, the backend retrieves the encrypted blob from IPFS, decrypts the plaintext in memory, and streams it to the doctor's authenticated browser session.
+- When an authorized doctor requests a record view, the backend queries the blockchain (`checkAccess(doctorWallet, recordId)`). If verified, the backend retrieves the encrypted blob from IPFS, decrypts the plaintext in memory, and streams it to the doctor's authenticated browser session.
 
 ### Technical Limitation & Future Roadmap
 - **Server Trust Vector**: Because the backend holds decryption capability, a compromised backend server could theoretically access plaintext records.
@@ -81,8 +81,8 @@ For high-volume enterprise deployments with millions of events, an off-chain blo
 
 ### Technical Boundary
 When a patient revokes a doctor's access on-chain:
-- The `HealthcareRegistry.sol` contract immediately sets `recordAccess[recordId][doctorAddress] = false`.
-- Any subsequent call to `GET /records/:id/access-check` or `POST /records/:id/view` returns `403 Forbidden` / `Access Denied`.
+- The `RecordRegistry.sol` contract immediately sets `authorizedAccess[recordId][doctorAddress] = false`.
+- Any subsequent call to `GET /records/:id/access-check` or `GET /records/:id/view` returns `403 Forbidden` / `Access Denied`.
 
 ### Physical Reality of Digital Data
 - **Forward Revocation**: Revocation strictly prevents *future* downloads or decryptions of updated medical records.

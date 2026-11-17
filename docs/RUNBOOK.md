@@ -25,7 +25,7 @@ HealthChain is a 3-tier decentralized healthcare record management system:
                              └─────────────────────┘                   └─────────────────────┘
 ```
 
-1. **Smart Contracts Layer**: Solidity contract `HealthcareRegistry.sol` deployed on an EVM-compatible node (Hardhat local network). Manages immutable record metadata (CID, SHA-256 integrity hash, patient owner) and on-chain access permission mapping (`hasAccess(recordId, doctorAddress)`).
+1. **Smart Contracts Layer** (`contracts/`): two Solidity contracts deployed on an EVM-compatible node (Hardhat local network). `UserRegistry` holds on-chain roles (patient, doctor, hospital admin). `RecordRegistry` holds immutable record metadata (CID, SHA-256 integrity hash, patient owner) and the access permissions, queried with `checkAccess(recordId, doctorAddress)`.
 2. **Backend Gateway Layer**: Express 5 service (`backend/`). Mediates identity authentication (bcrypt passwords, signed JWT tokens), AES-256-GCM record payload encryption at rest, IPFS pinning, and interaction with the EVM via `ethers.js`.
 3. **Frontend Application Layer**: React 19 single-page application (`frontend/`). Role-based dashboards for Patients and Doctors, client-side input validation, session history preservation, and error boundaries.
 
@@ -50,21 +50,35 @@ HealthChain is a 3-tier decentralized healthcare record management system:
 ## 3. Configuration & Environment Variables
 
 ### Backend Configuration (`backend/.env`)
-Ensure `backend/.env` exists with the following configuration:
+Create `backend/.env` from the template and fill in the secrets:
+```bash
+cd backend
+cp .env.example .env
+```
+Required values (see `backend/README.md` for the full table):
 ```env
 PORT=4000
-JWT_SECRET=super-secret-jwt-key-replace-in-production
 RPC_URL=http://127.0.0.1:8545
-CONTRACT_ADDRESS=0x5FbDB2315678afecb367f032d93F642f64180aa3
+# Printed by the deploy script (these are the defaults on a fresh Hardhat node)
+USER_REGISTRY_ADDRESS=0x5FbDB2315678afecb367f032d93F642f64180aa3
+RECORD_REGISTRY_ADDRESS=0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512
+# Hardhat account #0, a public test key valid only on the local chain
 ADMIN_PRIVATE_KEY=0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80
-# Optional Pinata IPFS integration; leave empty or unset to use local encrypted stub
+# Generate each with: node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+JWT_SECRET=<random>
+WALLET_SECRET=<random>      # derives every user's wallet; rotating it orphans existing accounts and records
+ENCRYPTION_KEY=<64 hex chars>
+# Optional: leave empty to use the local encrypted file stub instead of Pinata
 PINATA_JWT=
+# Optional: set true to enable the legacy name+role login and the login-page quick-fill buttons
+DEMO_AUTH=false
 ```
 
 ### Frontend Configuration (`frontend/.env` or defaults)
-By default, the Vite dev server proxies or connects to `http://localhost:4000`. If overriding:
+By default the app talks to `http://localhost:4000`. To override, copy `frontend/.env.example` to `frontend/.env.local`:
 ```env
-VITE_API_URL=http://localhost:4000
+VITE_API_BASE_URL=http://localhost:4000
+VITE_USE_MOCK=false
 ```
 
 ---
@@ -75,7 +89,7 @@ Follow these steps in separate terminal windows to launch the full environment:
 
 ### Step 4.1: Start the Local Hardhat Node
 ```bash
-# In repository root
+cd contracts
 npx hardhat node
 ```
 *Expected Output:*
@@ -83,14 +97,14 @@ npx hardhat node
 - RPC JSON-RPC listening on `http://127.0.0.1:8545`.
 
 ### Step 4.2: Compile and Deploy Smart Contracts
-Open a second terminal to deploy `HealthcareRegistry.sol` to the local chain:
+Open a second terminal to deploy `UserRegistry` and `RecordRegistry` to the local chain:
 ```bash
-# In repository root
+cd contracts
 npx hardhat run scripts/deploy.js --network localhost
 ```
 *Expected Output:*
-- Prints the deployed contract address (typically `0x5FbDB2315678afecb367f032d93F642f64180aa3`).
-- If this address differs from `backend/.env`, update `CONTRACT_ADDRESS` in `backend/.env`.
+- Prints both deployed addresses (on a fresh node: `UserRegistry` `0x5FbDB2315678afecb367f032d93F642f64180aa3`, `RecordRegistry` `0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512`).
+- If they differ from `backend/.env`, update `USER_REGISTRY_ADDRESS` and `RECORD_REGISTRY_ADDRESS`.
 
 ### Step 4.3: Initialize and Start the Backend API
 ```bash
@@ -100,17 +114,14 @@ cd backend
 # Install dependencies if not already installed
 npm install
 
-# Seed the demo accounts into the backend database
+# Seed the demo accounts (admin, approved doctor, patient); run once per fresh chain
 npm run seed
 
 # Start the Express server
-npm run dev
-# or: node src/index.js
+npm start
 ```
 *Expected Output:*
-- `Connected to Ethereum RPC at http://127.0.0.1:8545`
-- `HealthcareRegistry loaded at 0x5FbDB23...`
-- `Backend server running on http://localhost:4000`
+- `Backend listening on http://localhost:4000 (file storage: local stub) CORS origin: http://localhost:5173`
 
 ### Step 4.4: Start the Frontend Application
 ```bash
@@ -131,7 +142,7 @@ npm run dev
 
 ## 5. Seeded Test Accounts
 
-The following demo accounts are created during the backend seed process (`backend/src/seed.js`):
+The following demo accounts are created by `npm run seed` in `backend/` (`backend/scripts/seed.js`):
 
 | Role | Email | Password | Display Name | Permissions & Notes |
 |---|---|---|---|---|
@@ -139,7 +150,7 @@ The following demo accounts are created during the backend seed process (`backen
 | **Doctor** | `doctor@demo.local` | `Doctor1234!` | Dr. Kapoor | Approved status. Can look up records by ID and view decrypted content when authorized |
 | **Admin** | `admin@demo.local` | `Admin1234!` | Administrator | System administrator for doctor credential approval |
 
-*Note: For testing and evaluation convenience, the redesigned Login screen provides one-click "Demo Accounts Quick-Fill" buttons for both Patient and Doctor.*
+*Note: The Login screen shows one-click persona quick-login buttons only when the backend runs with `DEMO_AUTH=true` (they use the legacy name+role login, not these accounts). With the default `DEMO_AUTH=false`, type the email and password above.*
 
 ---
 
@@ -161,14 +172,14 @@ curl -s -X POST http://localhost:4000/auth/login \
 
 ### End-to-End Patient Flow Rehearsal
 1. Navigate to `http://localhost:5173/login`.
-2. Click **Patient (Riya Sharma)** quick-fill button, then click **Sign In**.
+2. Sign in as `patient@demo.local` / `Patient1234!`.
 3. Verify landing on `/patient`:
    - Summary cards show Total Records, Active Authorized Doctors, Recent Upload, Access Status.
    - Connected wallet address is displayed.
 4. Navigate to **Upload Record** (`/patient/upload`):
-   - Choose a test text file (e.g., `qa-fixtures/qa-report.txt` or any `.txt`, `.md`, `.json`, `.csv`).
+   - Choose a test file: `.pdf`, `.png`, `.jpg`, `.doc`, `.docx` or `.txt`, up to 10 MB (the file contents must match the extension).
    - Fill in a record label (e.g. `Cardiology Consultation Report`).
-   - Click **Upload & Pin to Blockchain**.
+   - Click **Upload Record**.
    - Verify success banner with IPFS CID and Blockchain Transaction Hash.
 5. Navigate to **Access & Consent** (`/patient/access`):
    - Locate the uploaded record.
@@ -189,8 +200,8 @@ The complete end-to-end integration across all roles (Admin, Doctor, Patient) wa
    - Verify status is initialized to `pending` and JWT token is strictly withheld.
    - Verify unapproved login attempts return HTTP 403 `DOCTOR_PENDING`.
 3. **On-Chain Approval Pipeline**:
-   - Administrator generates approval command from `/admin`: `npm run approve-doctor -- <email>`.
-   - Execute script; verify practitioner deterministic wallet is derived and registered in `UserRegistry.sol`.
+   - Administrator clicks **Approve** next to the pending practitioner on `/admin` (or runs `npm run approve-doctor -- <email>` in `backend/`).
+   - Verify the practitioner's deterministic wallet is derived and registered in `UserRegistry`.
    - Approved practitioner logs in, receives token, and status updates to `approved`.
 4. **Patient Directory Discovery & Record Upload**:
    - Patient logs into `/patient`.
@@ -201,7 +212,7 @@ The complete end-to-end integration across all roles (Admin, Doctor, Patient) wa
    - Prior to consent grant, practitioner lookup reports `authorized: false` and view returns HTTP 403.
    - Patient grants consent on `/patient/access`; verifies `ACCESS_GRANTED` event on audit trail.
    - Practitioner checks access; verified `authorized: true`.
-   - Practitioner views decrypted plaintext; verifies content and `RecordRegistry.sol` SHA-256 integrity match.
+   - Practitioner views the decrypted record; verifies content and the `RecordRegistry` SHA-256 integrity match.
 6. **On-Chain Revocation**:
    - Patient revokes practitioner access; verifies `ACCESS_REVOKED` event.
    - Practitioner re-check immediately denies access (`authorized: false`, view HTTP 403 `ACCESS_DENIED`).
@@ -211,17 +222,14 @@ The complete end-to-end integration across all roles (Admin, Doctor, Patient) wa
 ## 7. Operational Troubleshooting & Error Recovery
 
 ### Issue: "Nonce too high" or "Replacement transaction underpriced"
-- **Cause**: The local Hardhat node was restarted without resetting backend account nonce state, or concurrent transactions were broadcast.
-- **Resolution**:
-  1. Restart Hardhat node: `npx hardhat node`.
-  2. Redeploy contract: `npx hardhat run scripts/deploy.js --network localhost`.
-  3. Re-run backend seed: `cd backend && npm run seed && npm run dev`.
+- **Cause**: The local Hardhat node was restarted but the backend still holds state from the old chain (record ids in `backend/data/store.json` restart at 1, and old accounts are no longer registered on-chain).
+- **Resolution**: follow the "Clean Reset Procedure" in `backend/README.md`: stop everything, delete `backend/data/store.json` and `backend/.local-ipfs/`, restart `npx hardhat node` and redeploy from `contracts/`, then `cd backend && npm run seed && npm start`.
 
 ### Issue: Browser Network Error / CORS Rejection
 - **Cause**: Backend server is offline or frontend is sending requests to an incorrect port.
 - **Resolution**:
   1. Check backend status: `curl http://localhost:4000/auth/me`.
-  2. Confirm CORS configuration in `backend/src/index.js` allows requests from `http://localhost:5173`.
+  2. Confirm `CORS_ORIGIN` in `backend/.env` matches the frontend origin (default `http://localhost:5173`).
 
 ### Issue: Newly Registered Doctor Cannot Log In
 - **Symptom**: User sees "Pending Administrator Approval" badge after registering as a Doctor.
@@ -229,7 +237,7 @@ The complete end-to-end integration across all roles (Admin, Doctor, Patient) wa
 - **Resolution**: The account remains in `pending` state until approved via administrator workflow. For immediate testing, use the pre-seeded approved doctor `doctor@demo.local`.
 
 ### Issue: File Upload Rejection
-- **Allowed Formats**: Plain text files (`.txt`, `.md`, `.csv`, `.json`).
+- **Allowed Formats**: `.pdf`, `.png`, `.jpg`/`.jpeg`, `.doc`, `.docx`, `.txt`.
 - **Maximum Size**: 10 MB.
-- **Reason**: Binary files (e.g., raw `.pdf`, `.exe`) are rejected by client validation to safeguard against non-printable data corruption during client-side AES-GCM streaming.
+- **Reason for rejection**: the backend checks the extension and the file's magic bytes. A file whose contents do not match its extension is rejected with `FILE_CONTENT_MISMATCH`; other types (e.g. `.md`, `.csv`, `.json`, `.exe`) are rejected with `UNSUPPORTED_FILE_TYPE`. Files are encrypted with AES-256-GCM on the server, not in the browser.
 

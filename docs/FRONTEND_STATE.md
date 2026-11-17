@@ -6,11 +6,11 @@
    - **Modular Role-Based Page Architecture:** Split the monolithic dashboards into dedicated pages, one per sidebar navigation item:
      - `/patient` (PatientOverview): Metric cards, short 3-record preview with link to full records, quick actions to upload/access, workflow instructions.
      - `/patient/records` (PatientRecords): Full data table with newest-first sorting, IPFS CIDs, and direct links to manage access.
-     - `/patient/upload` (PatientUpload): Reusable inline `UploadRecordForm` with complete client validations (.txt/.md/.csv/.json, 10MB limit, empty file, <=100 char label), multi-step progress, shortened tx hash with copy, and "Upload another" / "View my records" actions. Replaced modal upload completely.
+     - `/patient/upload` (PatientUpload): Reusable inline `UploadRecordForm` with complete client validations (.txt/.pdf/.png/.jpg/.doc/.docx, 10MB limit, empty file, <=100 char label), multi-step progress, shortened tx hash with copy, and "Upload another" / "View my records" actions. Replaced modal upload completely.
      - `/patient/access` (PatientAccess): Dedicated access & consent portal displaying record rows with authorized doctor chips, on-chain `RevokeAccessModal`, and `GrantAccessModal`.
      - `/patient/profile` and `/doctor/profile` (Profile): Shared profile displaying session identity, email, role, status, and wallet address with copy button directly from `useAuth()` with zero API calls.
      - `/doctor` (DoctorOverview): Summary cards, short preview of recent lookups, quick link to Record Lookup, and workflow card.
-     - `/doctor/lookup` (DoctorLookupPage): Dedicated `RecordLookup` component with numeric string ID validation, access badges, secure plain text `<pre>` viewer, hide button, and recent lookup reuse buttons.
+     - `/doctor/lookup` (DoctorLookupPage): Dedicated `RecordLookup` component with numeric string ID validation, access badges, multi-format viewer (text in `<pre>`, PDF/images inline, Word as a download card) with on-chain hash verification, hide button, and recent lookup reuse buttons.
      - `/` (RootRedirect): Redirects authenticated doctors to `/doctor`, authenticated patients to `/patient`, preserves admin notice, and redirects unauthenticated visitors to `/login`.
      - `*` (NotFound): Friendly 404 page with navigation button back to the user's dashboard or login.
    - **Lifted Doctor Session History:** Wrapped doctor routes in `<DoctorSessionProvider>` using React Context so in-memory lookups, viewed counts, and recent lookup items survive route navigation between `/doctor`, `/doctor/lookup`, and `/doctor/profile`.
@@ -32,7 +32,7 @@
    - **Data Loading:** Implemented unified `loadRecords()` fetching `GET /records/mine`, called once on mount and automatically refreshed after upload, grant, or revoke, with an explicit "Refresh" button in the header.
    - **Sorting:** Sorted records newest-first by parsing `uploadedAt` descending (`new Date(b.uploadedAt) - new Date(a.uploadedAt)`), addressing the chain's oldest-first order.
    - **Metric Cards:** Fully computed from real loaded data (Total records = count, Active authorized doctors = unique count of doctor wallet addresses across all records, Recent upload = label of newest record by timestamp).
-   - **Upload Record:** Restricted files to `.txt, .md, .csv, .json` (via HTML `accept` and client code validation), rejected empty files and files > 10 MB, required trimmed labels <= 100 chars, showed multi-step waiting state during encryption/IPFS/chain confirmation, disabled actions while pending, and showed shortened tx hash with copy button on success.
+   - **Upload Record:** Restricted files to `.txt, .pdf, .png, .jpg, .jpeg, .doc, .docx` (via HTML `accept` and client code validation), rejected empty files and files > 10 MB, required trimmed labels <= 100 chars, showed multi-step waiting state during encryption/IPFS/chain confirmation, disabled actions while pending, and showed shortened tx hash with copy button on success.
    - **Grant Access:** Populated doctor dropdown dynamically from `GET /doctors`, prevented duplicate grants on-chain before transaction dispatch, validated 42-char address format regex (`/^0x[a-fA-F0-9]{40}$/`), disabled actions while pending, and showed tx hash on success.
    - **Revoke Access:** Confirmation modal clearly stating doctor name and record label, disabled buttons while pending, showed tx hash with copy button, and handled stale/repeated revokes gracefully with UI refresh.
    - **Chain/Wallet Edge Case:** Appended helpful guidance on `NOT_A_PATIENT` contract errors instructing the patient to re-authenticate if the chain was reset.
@@ -141,4 +141,4 @@
 ## Known Issues & Backend Gaps
 
 See [`docs/BACKEND_GAPS.md`](./BACKEND_GAPS.md) for detailed descriptions.
-- `GET /records/shared-with-me` is not implemented in the backend; doctor lookup remains on-demand by numeric record ID.
+- None open that block the demo. `GET /records/shared-with-me`, `/audit-trail` and the admin approval routes are implemented (see BACKEND_GAPS.md); doctors can still look up a record by numeric ID.
