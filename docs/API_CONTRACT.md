@@ -100,6 +100,21 @@
 
 ---
 
+### `GET /admin/users`
+**File:** `routes.js`  
+**Auth:** Bearer token (admin only)  
+**Query:** `role` (optional) — `admin`, `doctor` or `patient` to narrow the list
+
+| Scenario | Status | Response |
+|---|---|---|
+| Success | 200 | `{ users: [User] }` (every account: admins, doctors, patients) |
+| Unauthenticated | 401 | `{ error: "INVALID_TOKEN" }` |
+| Wrong role (patient/doctor) | 403 | `{ error: "WRONG_ROLE" }` |
+
+*Patients also carry `recordCount` (number of records they own, read from the chain; `null` if the node is unreachable). Feeds the admin Users / Doctors / Patients pages.*
+
+---
+
 ### `GET /admin/doctors`
 **File:** `routes.js`  
 **Auth:** Bearer token (admin only)

@@ -121,7 +121,7 @@ const DOCTOR_NAV_ITEMS = [
 
 const ADMIN_NAV_ITEMS = [
   {
-    label: 'Admin Portal',
+    label: 'Overview',
     to: '/admin',
     end: true,
     icon: (
@@ -130,6 +130,48 @@ const ADMIN_NAV_ITEMS = [
         <rect x="14" y="3" width="7" height="7" />
         <rect x="14" y="14" width="7" height="7" />
         <rect x="3" y="14" width="7" height="7" />
+      </svg>
+    ),
+  },
+  {
+    label: 'All Users',
+    to: '/admin/users',
+    icon: (
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2" />
+        <circle cx="9" cy="7" r="4" />
+        <path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75" />
+      </svg>
+    ),
+  },
+  {
+    label: 'Doctors',
+    to: '/admin/doctors',
+    icon: (
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M12 3v6M9 6h6" />
+        <path d="M5 21v-3a7 7 0 0114 0v3" />
+        <circle cx="12" cy="14" r="0.5" />
+      </svg>
+    ),
+  },
+  {
+    label: 'Patients',
+    to: '/admin/patients',
+    icon: (
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2" />
+        <circle cx="12" cy="7" r="4" />
+      </svg>
+    ),
+  },
+  {
+    label: 'Activity History',
+    to: '/admin/audit',
+    icon: (
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+        <circle cx="12" cy="12" r="9" />
+        <path d="M12 7v5l3 2" />
       </svg>
     ),
   },

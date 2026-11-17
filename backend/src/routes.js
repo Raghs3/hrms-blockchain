@@ -103,6 +103,28 @@ router.get("/admin/doctors", requireAuth("admin"), wrap(async (req, res) => {
   res.json({ doctors: store.listDoctors().map(sanitizeUser) });
 }));
 
+// Every account for the admin "Users" pages; ?role=doctor|patient|admin narrows it.
+// Patients also get recordCount (read from the chain; null if the node is unreachable).
+router.get("/admin/users", requireAuth("admin"), wrap(async (req, res) => {
+  const role = typeof req.query.role === "string" ? req.query.role : "";
+  let accounts = store.listAccounts();
+  if (role) accounts = accounts.filter((a) => a.role === role);
+  const users = await Promise.all(
+    accounts.map(async (account) => {
+      const user = sanitizeUser(account);
+      if (account.role === "patient") {
+        try {
+          user.recordCount = (await recordRegistry.getRecordsByOwner(account.walletAddress)).length;
+        } catch {
+          user.recordCount = null;
+        }
+      }
+      return user;
+    })
+  );
+  res.json({ users });
+}));
+
 router.post("/admin/doctors/:id/approve", requireAuth("admin"), wrap(async (req, res) => {
   try {
     const { account } = await approveDoctor(req.params.id);
