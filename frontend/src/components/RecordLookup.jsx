@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import LoadingState from './LoadingState';
-import RecordContentViewer, { isPrintableText, downloadRecordContent } from './RecordContentViewer';
+import RecordContentViewer, { downloadRecordContent } from './RecordContentViewer';
 import { checkAccess, viewRecord } from '../api/records';
 
 /**

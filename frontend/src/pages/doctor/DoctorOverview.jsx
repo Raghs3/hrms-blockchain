@@ -25,7 +25,7 @@ function truncate(str, head = 6, tail = 4) {
 export default function DoctorOverview() {
   useDocumentTitle('Overview');
   const { walletAddress } = useAuth();
-  const { viewedCount, lastLookup, lookups, addLookup, recordViewSuccess } = useDoctorSession();
+  const { viewedCount, lookups, addLookup, recordViewSuccess } = useDoctorSession();
 
   const [sharedRecords, setSharedRecords] = useState([]);
   const [loadingShared, setLoadingShared] = useState(true);
