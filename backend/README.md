@@ -24,13 +24,23 @@ npm run seed
 
 ## Demo Credentials (created by `npm run seed`)
 
-| Role    | Email                 | Password      |
-|---------|-----------------------|---------------|
-| Admin   | admin@demo.local      | Admin1234!    |
-| Doctor  | doctor@demo.local     | Doctor1234!   |
-| Patient | patient@demo.local    | Patient1234!  |
+One password per role: admin `Admin1234!`, doctors `Doctor1234!`, patients `Patient1234!`.
 
-> The seed doctor is automatically approved and registered on-chain.
+| Role | Name | Email | Status |
+|------|------|-------|--------|
+| Admin | Admin User | admin@demo.local | approved |
+| Patient | Riya Sharma | patient@demo.local | approved |
+| Patient | Arjun Mehta | arjun.mehta@demo.local | approved |
+| Patient | Neha Kulkarni | neha.kulkarni@demo.local | approved |
+| Patient | Imran Sheikh | imran.sheikh@demo.local | approved |
+| Doctor | Dr. Kapoor | doctor@demo.local | approved |
+| Doctor | Dr. Anjali Rao | anjali.rao@demo.local | approved |
+| Doctor | Dr. Vikram Desai | vikram.desai@demo.local | approved |
+| Doctor | Dr. Sneha Iyer | sneha.iyer@demo.local | pending (approve live from `/admin`) |
+| Doctor | Dr. Rohan Gupta | rohan.gupta@demo.local | pending (approve live from `/admin`) |
+| Doctor | Dr. Karan Malhotra | karan.malhotra@demo.local | rejected (shows as Disabled, cannot log in) |
+
+> Patients and approved doctors are registered on-chain. Pending and rejected doctors are not, until an admin approves them. The seed is safe to re-run: existing accounts are skipped.
 
 ## Doctor Approval
 
