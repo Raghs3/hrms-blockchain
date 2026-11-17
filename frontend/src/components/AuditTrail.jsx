@@ -1,5 +1,6 @@
 import { useState, useMemo } from 'react';
 import { useAuditTrail } from '../context/AuditTrailContext';
+import { describeExpiry } from './consentFormat';
 import { useAuth } from '../context/AuthContext';
 import LoadingState from './LoadingState';
 
@@ -187,6 +188,12 @@ function EventRow({ evt, myAddress }) {
             <strong>{s.owner}</strong> {s.verb}
             {s.doctor ? <> <strong>{s.doctor}</strong>{s.tail ? ` ${s.tail}` : ''}</> : ''} <strong>{s.record}</strong>
           </div>
+          {kind === 'grant' && (evt.purpose || evt.expiresAt) && (
+            <div style={{ marginTop: '2px', fontSize: '0.8125rem', color: 'var(--color-text-secondary)' }}>
+              {evt.purpose ? <>Reason: <strong>{evt.purpose}</strong> · </> : null}
+              {describeExpiry(evt.expiresAt)}
+            </div>
+          )}
           <div
             style={{
               marginTop: '4px',

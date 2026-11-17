@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { getAccessReceipts } from '../api/records';
+import { getAccessReceipts, ACCESS_RECEIPT_EVENT } from '../api/records';
 import LoadingState from './LoadingState';
 
 function truncate(str, head = 10, tail = 8) {
@@ -51,6 +51,12 @@ export default function AccessReceipts({
     load();
   }, [load, refreshKey]);
 
+  // Reload when this browser tab just logged a new receipt (a record was opened).
+  useEffect(() => {
+    window.addEventListener(ACCESS_RECEIPT_EVENT, load);
+    return () => window.removeEventListener(ACCESS_RECEIPT_EVENT, load);
+  }, [load]);
+
   return (
     <div className="card" id="access-receipts">
       <div className="card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '12px', flexWrap: 'wrap' }}>
@@ -75,6 +81,8 @@ export default function AccessReceipts({
           <div style={{ color: 'var(--color-text-muted)', fontSize: '0.9rem' }}>
             {viewer === 'patient'
               ? 'No one has opened your records yet.'
+              : viewer === 'admin'
+              ? 'No record has been opened yet.'
               : 'You have not opened any records yet.'}
           </div>
         )}
@@ -83,7 +91,9 @@ export default function AccessReceipts({
           <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
             {data.receipts.map((r) => {
               const who =
-                r.selfAccess || viewer === 'doctor' ? 'You' : r.accessorName || truncate(r.accessor, 6, 4);
+                viewer === 'doctor' || (r.selfAccess && viewer === 'patient')
+                  ? 'You'
+                  : r.accessorName || truncate(r.accessor, 6, 4);
               const what = r.label || `Record #${r.recordId}`;
               const key = r.txHash;
               return (
@@ -99,7 +109,10 @@ export default function AccessReceipts({
                   <div style={{ display: 'flex', justifyContent: 'space-between', gap: '12px', flexWrap: 'wrap' }}>
                     <div style={{ fontSize: '0.9375rem' }}>
                       <strong>{who}</strong> opened <strong>{what}</strong>
-                      {viewer === 'doctor' && r.ownerName ? <> (patient {r.ownerName})</> : null}
+                      {(viewer === 'doctor' || viewer === 'admin') && !r.selfAccess && r.ownerName ? (
+                        <> (patient {r.ownerName})</>
+                      ) : null}
+                      {viewer === 'admin' && r.selfAccess ? <> (their own record)</> : null}
                     </div>
                     <div style={{ fontSize: '0.8125rem', color: 'var(--color-text-muted)' }}>{formatWhen(r.timestamp)}</div>
                   </div>

@@ -157,6 +157,8 @@ export function AuditTrailProvider({ children }) {
         ownerName: eventData.ownerName || null,
         doctor: eventData.doctor || eventData.doctorAddress || null,
         doctorName: eventData.doctorName || null,
+        purpose: eventData.purpose || null,
+        expiresAt: eventData.expiresAt || null,
         timestamp: eventData.timestamp || new Date().toISOString(),
         isPendingSession: true,
       };

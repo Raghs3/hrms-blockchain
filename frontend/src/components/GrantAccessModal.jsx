@@ -139,6 +139,8 @@ export default function GrantAccessModal({ record, onSuccess }) {
         doctorAddress: targetAddress,
         doctorName: docDisplayName,
         txHash: result.txHash,
+        purpose: result.purpose || purpose,
+        expiresAt: result.expiresAt ?? expiresAt,
         timestamp: new Date().toISOString(),
       });
 
