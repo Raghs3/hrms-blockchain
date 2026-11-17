@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import Layout from '../../components/Layout';
 import LoadingState from '../../components/LoadingState';
 import EmptyState from '../../components/EmptyState';
+import AuditTrail from '../../components/AuditTrail';
 import { useAuth } from '../../context/AuthContext';
 import useDocumentTitle from '../../hooks/useDocumentTitle';
 import api from '../../api/axios';
@@ -615,6 +616,11 @@ export default function AdminDashboard() {
             </table>
           </div>
         </div>
+      </div>
+
+      {/* Comprehensive System Audit Trail (All Events) */}
+      <div style={{ marginTop: '24px' }}>
+        <AuditTrail title="Comprehensive System Audit Trail (All On-Chain Events)" />
       </div>
     </Layout>
   );

@@ -4,6 +4,7 @@ import Layout from '../../components/Layout';
 import LoadingState from '../../components/LoadingState';
 import EmptyState from '../../components/EmptyState';
 import ViewRecordModal from '../../components/ViewRecordModal';
+import AuditTrail from '../../components/AuditTrail';
 import { useAuth } from '../../context/AuthContext';
 import { useDoctorSession } from '../../context/DoctorSessionContext';
 import { getSharedWithMe } from '../../api/records';
@@ -487,6 +488,11 @@ export default function DoctorOverview() {
             </ul>
           )}
         </div>
+      </div>
+
+      {/* Doctor Consent & Access Audit Trail */}
+      <div style={{ marginTop: '24px' }}>
+        <AuditTrail title="Doctor Consent & Access Audit Trail" />
       </div>
 
       {/* Modal viewer for doctor */}

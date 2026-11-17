@@ -1,11 +1,13 @@
-import { createContext, useContext, useState, useCallback } from 'react';
+import { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
 import { useAuth } from './AuthContext';
+import { getAuditTrail } from '../api/records';
 
 const AuditTrailContext = createContext(null);
 
-const STORAGE_PREFIX = 'healthchain_audit_events_';
+const STORAGE_PREFIX = 'healthchain_audit_session_';
+const PAGE_SIZE = 20;
 
-function getInitialEvents(wallet) {
+function getInitialSessionEvents(wallet) {
   if (!wallet) return [];
   try {
     const key = `${STORAGE_PREFIX}${wallet.toLowerCase()}`;
@@ -21,120 +23,162 @@ function getInitialEvents(wallet) {
 }
 
 /**
- * AuditTrailProvider - Manages an immutable-style client audit log of on-chain
- * transactions (Record Added, Access Granted, Access Revoked) executed in the system.
+ * AuditTrailProvider - Manages authoritative on-chain audit trail from GET /audit-trail
+ * combined with client sessionStorage events for pending/just-performed actions.
+ * Supports pagination (Load more) and zero-duplicate event merging.
  */
 export function AuditTrailProvider({ children }) {
-  const { walletAddress } = useAuth();
-  const [events, setEvents] = useState(() => getInitialEvents(walletAddress));
-  const [prevWallet, setPrevWallet] = useState(walletAddress);
+  const { walletAddress, isAuthenticated } = useAuth();
 
-  // Synchronize state when wallet address changes (switching accounts)
-  if (prevWallet !== walletAddress) {
-    setPrevWallet(walletAddress);
-    setEvents(getInitialEvents(walletAddress));
+  const [serverEvents, setServerEvents] = useState([]);
+  const [serverTotal, setServerTotal] = useState(0);
+  const [loading, setLoading] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [error, setError] = useState('');
+  const [isRpcError, setIsRpcError] = useState(false);
+
+  // In-session optimistic events
+  const [sessionEvents, setSessionEvents] = useState(() => getInitialSessionEvents(walletAddress));
+  const [currentWallet, setCurrentWallet] = useState(walletAddress);
+
+  // Synchronize when wallet changes
+  if (currentWallet !== walletAddress) {
+    setCurrentWallet(walletAddress);
+    setSessionEvents(getInitialSessionEvents(walletAddress));
+    setServerEvents([]);
+    setServerTotal(0);
   }
 
-  // Persist events to sessionStorage
-  const persistEvents = useCallback((newEvents, currentWallet) => {
-    if (!currentWallet) return;
+  const persistSessionEvents = useCallback((items, wallet) => {
+    if (!wallet) return;
     try {
-      const key = `${STORAGE_PREFIX}${currentWallet.toLowerCase()}`;
-      sessionStorage.setItem(key, JSON.stringify(newEvents));
+      const key = `${STORAGE_PREFIX}${wallet.toLowerCase()}`;
+      sessionStorage.setItem(key, JSON.stringify(items));
     } catch {
       // Ignore storage quota errors
     }
   }, []);
 
-  /**
-   * Adds an audit event for an on-chain transaction.
-   *
-   * @param {{
-   *   type: 'RECORD_UPLOADED' | 'ACCESS_GRANTED' | 'ACCESS_REVOKED',
-   *   recordId: string | number,
-   *   label?: string,
-   *   cid?: string,
-   *   txHash: string,
-   *   doctorAddress?: string,
-   *   doctorName?: string,
-   *   timestamp?: string
-   * }} eventData
-   */
-  const addAuditEvent = useCallback((eventData) => {
-    if (!eventData || !eventData.txHash) return;
+  // Fetch initial or refreshed events from backend
+  const fetchAuditTrail = useCallback(
+    async (offset = 0, isInitial = false) => {
+      if (!isAuthenticated) return;
 
-    const newEvent = {
-      id: `${eventData.txHash}_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
-      type: eventData.type,
-      recordId: String(eventData.recordId || ''),
-      label: eventData.label || `Record #${eventData.recordId}`,
-      cid: eventData.cid || '',
-      txHash: eventData.txHash,
-      doctorAddress: eventData.doctorAddress || '',
-      doctorName: eventData.doctorName || '',
-      timestamp: eventData.timestamp || new Date().toISOString(),
-    };
-
-    setEvents((prev) => {
-      // Prevent duplicates by txHash and type
-      if (prev.some((e) => e.txHash === newEvent.txHash && e.type === newEvent.type)) {
-        return prev;
+      if (isInitial) {
+        setLoading(true);
+      } else {
+        setLoadingMore(true);
       }
-      const updated = [newEvent, ...prev].slice(0, 50); // Keep latest 50 events
-      persistEvents(updated, walletAddress);
-      return updated;
-    });
-  }, [walletAddress, persistEvents]);
+      setError('');
+      setIsRpcError(false);
 
-  /**
-   * Seeds historical events from loaded records if the audit trail is empty.
-   */
-  const seedFromRecords = useCallback((records = []) => {
-    if (!Array.isArray(records) || records.length === 0 || !walletAddress) return;
+      try {
+        const res = await getAuditTrail(PAGE_SIZE, offset);
+        const incoming = Array.isArray(res?.events) ? res.events : [];
+        const total = typeof res?.total === 'number' ? res.total : incoming.length;
 
-    setEvents((prev) => {
-      if (prev.length > 0) return prev; // Don't overwrite active session log
-
-      const historical = [];
-      for (const rec of records) {
-        // Record added event
-        if (rec.recordId) {
-          historical.push({
-            id: `seed_upload_${rec.recordId}`,
-            type: 'RECORD_UPLOADED',
-            recordId: String(rec.recordId),
-            label: rec.label || `Record #${rec.recordId}`,
-            cid: rec.cid || '',
-            txHash: rec.txHash || `0x${Math.random().toString(16).slice(2, 10)}...onchain`,
-            timestamp: rec.uploadedAt || new Date().toISOString(),
+        if (offset === 0) {
+          setServerEvents(incoming);
+        } else {
+          setServerEvents((prev) => {
+            const existingTx = new Set(prev.map((e) => e.txHash).filter(Boolean));
+            const fresh = incoming.filter((e) => !existingTx.has(e.txHash));
+            return [...prev, ...fresh];
           });
         }
-
-        // Active doctor grants
-        if (Array.isArray(rec.authorizedDoctors)) {
-          for (const doc of rec.authorizedDoctors) {
-            historical.push({
-              id: `seed_grant_${rec.recordId}_${doc.walletAddress}`,
-              type: 'ACCESS_GRANTED',
-              recordId: String(rec.recordId),
-              label: rec.label || `Record #${rec.recordId}`,
-              doctorAddress: doc.walletAddress,
-              doctorName: doc.name || 'Authorized Doctor',
-              txHash: `0x${Math.random().toString(16).slice(2, 10)}...onchain`,
-              timestamp: rec.uploadedAt || new Date().toISOString(),
-            });
-          }
+        setServerTotal(total);
+      } catch (err) {
+        const isRpc = err?.code === 'RPC_ERROR' || err?.status === 503;
+        setIsRpcError(isRpc);
+        setError(
+          isRpc
+            ? 'Blockchain RPC node is currently unavailable. Please verify network connectivity.'
+            : err?.message || 'Failed to load on-chain audit trail.'
+        );
+      } finally {
+        if (isInitial) {
+          setLoading(false);
+        } else {
+          setLoadingMore(false);
         }
       }
+    },
+    [isAuthenticated]
+  );
 
-      if (historical.length === 0) return prev;
-      persistEvents(historical, walletAddress);
-      return historical;
-    });
-  }, [walletAddress, persistEvents]);
+  // Load audit trail when authenticated or when wallet changes
+  useEffect(() => {
+    if (isAuthenticated) {
+      fetchAuditTrail(0, true);
+    } else {
+      setServerEvents([]);
+      setServerTotal(0);
+    }
+  }, [isAuthenticated, walletAddress, fetchAuditTrail]);
 
+  // Load more pagination handler
+  const loadMore = useCallback(() => {
+    if (loading || loadingMore) return;
+    if (serverEvents.length >= serverTotal) return;
+    fetchAuditTrail(serverEvents.length, false);
+  }, [loading, loadingMore, serverEvents.length, serverTotal, fetchAuditTrail]);
+
+  // Refresh handler
+  const refresh = useCallback(() => {
+    return fetchAuditTrail(0, true);
+  }, [fetchAuditTrail]);
+
+  /**
+   * Adds an audit event for a just-performed client action.
+   * Merged with server events without duplication.
+   */
+  const addAuditEvent = useCallback(
+    (eventData) => {
+      if (!eventData || !eventData.txHash) return;
+
+      const normalizedType =
+        eventData.type === 'RECORD_UPLOADED' ? 'RECORD_ADDED' : eventData.type;
+
+      const newEvent = {
+        id: `${eventData.txHash}_session`,
+        type: normalizedType,
+        eventName:
+          normalizedType === 'RECORD_ADDED'
+            ? 'RecordAdded'
+            : normalizedType === 'ACCESS_GRANTED'
+            ? 'AccessGranted'
+            : 'AccessRevoked',
+        recordId: String(eventData.recordId || ''),
+        label: eventData.label || `Record #${eventData.recordId}`,
+        cid: eventData.cid || null,
+        fileHash: eventData.fileHash || null,
+        txHash: eventData.txHash,
+        owner: eventData.owner || walletAddress || null,
+        ownerName: eventData.ownerName || null,
+        doctor: eventData.doctor || eventData.doctorAddress || null,
+        doctorName: eventData.doctorName || null,
+        timestamp: eventData.timestamp || new Date().toISOString(),
+        isPendingSession: true,
+      };
+
+      setSessionEvents((prev) => {
+        // Prevent duplicate session entries by txHash
+        if (prev.some((e) => e.txHash === newEvent.txHash)) {
+          return prev;
+        }
+        const updated = [newEvent, ...prev].slice(0, 30);
+        persistSessionEvents(updated, walletAddress);
+        return updated;
+      });
+    },
+    [walletAddress, persistSessionEvents]
+  );
+
+  /**
+   * Clears session events and re-fetches from chain.
+   */
   const clearAuditTrail = useCallback(() => {
-    setEvents([]);
+    setSessionEvents([]);
     if (walletAddress) {
       try {
         sessionStorage.removeItem(`${STORAGE_PREFIX}${walletAddress.toLowerCase()}`);
@@ -142,13 +186,42 @@ export function AuditTrailProvider({ children }) {
         // Ignore
       }
     }
-  }, [walletAddress]);
+    fetchAuditTrail(0, true);
+  }, [walletAddress, fetchAuditTrail]);
 
-  return (
-    <AuditTrailContext.Provider value={{ events, addAuditEvent, seedFromRecords, clearAuditTrail }}>
-      {children}
-    </AuditTrailContext.Provider>
-  );
+  /**
+   * Optional fallback for legacy seed compatibility.
+   */
+  const seedFromRecords = useCallback(() => {
+    // Real history is loaded from GET /audit-trail; no-op
+  }, []);
+
+  // Merge session events that haven't yet been confirmed/returned by the server
+  const events = useMemo(() => {
+    const serverTxHashes = new Set(serverEvents.map((e) => e.txHash).filter(Boolean));
+    const pendingSession = sessionEvents.filter((e) => !serverTxHashes.has(e.txHash));
+    return [...pendingSession, ...serverEvents];
+  }, [sessionEvents, serverEvents]);
+
+  const hasMore = serverEvents.length < serverTotal;
+  const total = serverTotal + (events.length - serverEvents.length);
+
+  const value = {
+    events,
+    loading,
+    loadingMore,
+    error,
+    isRpcError,
+    total,
+    hasMore,
+    loadMore,
+    refresh,
+    addAuditEvent,
+    clearAuditTrail,
+    seedFromRecords,
+  };
+
+  return <AuditTrailContext.Provider value={value}>{children}</AuditTrailContext.Provider>;
 }
 
 export function useAuditTrail() {
