@@ -1,0 +1,64 @@
+% Drop-in figures and tables for the IEEEtran paper. Figures live in figures/*.png
+% (regenerate: python -I build_figures.py; powershell -File render_figures.ps1).
+% All numbers come from data/measurements.json (contracts/scripts/measure-gas.js).
+
+\begin{figure}[htbp]\centerline{\includegraphics[width=0.95\linewidth]{figures/fig1_process_flow.png}}
+\caption{Proposed System Process Flow}\label{fig:flow}\end{figure}
+
+\begin{figure}[htbp]\centerline{\includegraphics[width=0.95\linewidth]{figures/fig2_architecture.png}}
+\caption{Layered System Architecture}\label{fig:arch}\end{figure}
+
+\begin{figure*}[htbp]\centerline{\includegraphics[width=0.7\linewidth]{figures/fig3_sequence.png}}
+\caption{Sequence Diagram of the Upload--Grant--View--Revoke--Deny Flow}\label{fig:seq}\end{figure*}
+
+\begin{figure}[htbp]\centerline{\includegraphics[width=0.95\linewidth]{figures/fig4_contracts.png}}
+\caption{Smart-Contract Structure and Dependencies}\label{fig:contracts}\end{figure}
+
+\begin{figure}[htbp]\centerline{\includegraphics[width=0.95\linewidth]{figures/fig5_consent_states.png}}
+\caption{Consent State Machine}\label{fig:states}\end{figure}
+
+\begin{figure}[htbp]\centerline{\includegraphics[width=0.95\linewidth]{figures/fig6_gas_cost.png}}
+\caption{Gas Consumption per Contract Operation}\label{fig:gas}\end{figure}
+
+\begin{figure}[htbp]\centerline{\includegraphics[width=0.95\linewidth]{figures/fig7_scaling.png}}
+\caption{Gas Scalability of addRecord and grantAccess}\label{fig:scaling}\end{figure}
+
+\begin{figure}[htbp]\centerline{\includegraphics[width=0.95\linewidth]{figures/fig8_latency.png}}
+\caption{Read-path Latency of Contract Calls}\label{fig:latency}\end{figure}
+
+\begin{table}[htbp]
+\caption{Measured Gas Cost per Operation (Hardhat, solc 0.8.24, optimizer 200 runs)}
+\label{tab:gas}\centering
+\begin{tabular}{|l|r|l|}
+\hline \textbf{Operation} & \textbf{Gas} & \textbf{Caller} \ \hline
+Deploy UserRegistry & 512,511 & Admin \ \hline
+Deploy RecordRegistry & 835,688 & Admin \ \hline
+registerAsPatient & 47,036 & Patient \ \hline
+registerDoctor & 49,965 & Hospital admin \ \hline
+addRecord (first record) & 237,548 & Patient \ \hline
+addRecord (subsequent) & 220,448 & Patient \ \hline
+grantAccess & 59,276 & Patient (owner) \ \hline
+revokeAccess & 34,298 & Patient (owner) \ \hline
+\end{tabular}\end{table}
+
+\begin{table}[htbp]
+\caption{Role--Permission Matrix}\label{tab:roles}\centering
+\begin{tabular}{|l|c|c|c|}
+\hline \textbf{Action} & \textbf{Patient} & \textbf{Doctor} & \textbf{Admin} \ \hline
+Self-register & \checkmark & $\times$ & $\times$ \ \hline
+Register doctor & $\times$ & $\times$ & \checkmark \ \hline
+Add record & \checkmark & $\times$ & $\times$ \ \hline
+Grant / revoke access & Owner only & $\times$ & $\times$ \ \hline
+Read record & Owner & If granted & $\times$ \ \hline
+\end{tabular}\end{table}
+
+\begin{table}[htbp]
+\caption{Design Comparison (qualitative)}\label{tab:comparative}\centering
+\begin{tabular}{|p{0.38\linewidth}|c|c|c|}
+\hline \textbf{Property} & \textbf{Proposed} & \textbf{Central EHR} & \textbf{Files on-chain} \ \hline
+Patient-controlled consent & \checkmark & $\times$ & \checkmark \ \hline
+Immutable audit trail & \checkmark & Partial & \checkmark \ \hline
+Instant revocation enforced by contract & \checkmark & $\times$ & \checkmark \ \hline
+Large files supported cheaply & \checkmark & \checkmark & $\times$ \ \hline
+No single point of trust for access & \checkmark & $\times$ & \checkmark \ \hline
+\end{tabular}\end{table}
