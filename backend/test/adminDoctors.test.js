@@ -37,7 +37,7 @@ describe("Admin doctor roster, disable and re-enable", () => {
       const a = await call("POST", `/admin/doctors/${reg.body.user.id}/approve`, { token: adminToken });
       assert.equal(a.status, 200, JSON.stringify(a.body));
     }
-    return { id: reg.body.user.id, email };
+    return { id: reg.body.user.id, email, address: reg.body.user.walletAddress };
   }
 
   before(async () => {
@@ -111,7 +111,7 @@ describe("Admin doctor roster, disable and re-enable", () => {
 
     // a disabled doctor disappears from the patient's grant dropdown
     const dir = await call("GET", "/doctors", { token: patientToken });
-    assert.ok(!dir.body.doctors.some((d) => d.name === "rosterToggle"));
+    assert.ok(!dir.body.doctors.some((d) => d.walletAddress === doc.address));
 
     // re-enable restores everything
     const enable = await call("POST", `/admin/doctors/${doc.id}/approve`, { token: adminToken });
@@ -120,6 +120,6 @@ describe("Admin doctor roster, disable and re-enable", () => {
     assert.equal((await call("GET", "/records/shared-with-me", { token })).status, 200);
     assert.equal((await call("POST", "/auth/login", { json: { email: doc.email, password: PASSWORD } })).status, 200);
     const dir2 = await call("GET", "/doctors", { token: patientToken });
-    assert.ok(dir2.body.doctors.some((d) => d.name === "rosterToggle"));
+    assert.ok(dir2.body.doctors.some((d) => d.walletAddress === doc.address));
   });
 });
