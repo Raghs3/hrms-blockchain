@@ -4,6 +4,7 @@ import Layout from '../../components/Layout';
 import LoadingState from '../../components/LoadingState';
 import EmptyState from '../../components/EmptyState';
 import { getDoctors } from '../../api/auth';
+import { useAuth } from '../../context/AuthContext';
 import useDocumentTitle from '../../hooks/useDocumentTitle';
 
 /**
@@ -23,6 +24,9 @@ function truncateAddress(address) {
  */
 export default function DoctorsDirectory() {
   useDocumentTitle('Doctors Directory');
+
+  const { role } = useAuth();
+  const isDoctor = role === 'doctor';
 
   const [doctors, setDoctors] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -84,16 +88,26 @@ export default function DoctorsDirectory() {
         <div className="page-header-left">
           <h1>Hospital Doctors Directory</h1>
           <p className="page-description">
-            Browse verified medical practitioners accredited on the blockchain. You can grant access to your encrypted records per practitioner.
+            {isDoctor
+              ? 'Browse verified medical practitioners accredited on the blockchain UserRegistry.'
+              : 'Browse verified medical practitioners accredited on the blockchain. You can grant access to your encrypted records per practitioner.'}
           </p>
         </div>
         <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-          <Link to="/patient/access" className="btn btn-secondary" id="directory-manage-access-btn">
-            Manage Access & Consent
-          </Link>
-          <Link to="/patient/records" className="btn btn-primary" id="directory-my-records-btn">
-            My Records
-          </Link>
+          {isDoctor ? (
+            <Link to="/doctor/lookup" className="btn btn-primary" id="directory-record-lookup-btn">
+              Record Lookup
+            </Link>
+          ) : (
+            <>
+              <Link to="/patient/access" className="btn btn-secondary" id="directory-manage-access-btn">
+                Manage Access & Consent
+              </Link>
+              <Link to="/patient/records" className="btn btn-primary" id="directory-my-records-btn">
+                My Records
+              </Link>
+            </>
+          )}
         </div>
       </div>
 
@@ -350,16 +364,29 @@ export default function DoctorsDirectory() {
                     justifyContent: 'space-between',
                   }}
                 >
-                  <span style={{ fontSize: '0.775rem', color: 'var(--color-text-muted)' }}>
-                    Permissions: On-Demand
-                  </span>
-                  <Link
-                    to={`/patient/access?doctor=${encodeURIComponent(doc.walletAddress)}`}
-                    className="btn btn-primary btn-sm"
-                    id={`grant-record-access-${doc.walletAddress.slice(2, 8).toLowerCase()}`}
-                  >
-                    Grant Record Access →
-                  </Link>
+                  {isDoctor ? (
+                    <>
+                      <span style={{ fontSize: '0.775rem', color: 'var(--color-text-muted)' }}>
+                        Status: Active Staff
+                      </span>
+                      <span className="badge badge-authorized" style={{ fontSize: '0.75rem' }}>
+                        Verified DOCTOR_ROLE
+                      </span>
+                    </>
+                  ) : (
+                    <>
+                      <span style={{ fontSize: '0.775rem', color: 'var(--color-text-muted)' }}>
+                        Permissions: On-Demand
+                      </span>
+                      <Link
+                        to={`/patient/access?doctor=${encodeURIComponent(doc.walletAddress)}`}
+                        className="btn btn-primary btn-sm"
+                        id={`grant-record-access-${doc.walletAddress.slice(2, 8).toLowerCase()}`}
+                      >
+                        Grant Record Access →
+                      </Link>
+                    </>
+                  )}
                 </div>
               </div>
             );

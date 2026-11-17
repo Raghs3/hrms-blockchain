@@ -136,6 +136,7 @@ export default function App() {
             >
               <Route path="/doctor" element={<DoctorOverview />} />
               <Route path="/doctor/lookup" element={<DoctorLookupPage />} />
+              <Route path="/doctor/doctors" element={<DoctorsDirectory />} />
               <Route path="/doctor/profile" element={<Profile />} />
             </Route>
 
