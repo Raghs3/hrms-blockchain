@@ -8,7 +8,8 @@ import {
   mockViewRecord,
 } from './mock';
 
-const USE_MOCK = import.meta.env.VITE_USE_MOCK !== 'false';
+// VITE_USE_MOCK=false by default; mock mode only runs when explicitly set to 'true'
+const USE_MOCK = import.meta.env.VITE_USE_MOCK === 'true';
 
 /**
  * GET /records/mine
@@ -86,5 +87,39 @@ export async function viewRecord(recordId) {
     return mockViewRecord(recordId);
   }
   const response = await api.get(`/records/${recordId}/view`);
+  return response.data;
+}
+
+/**
+ * GET /records/shared-with-me
+ * Returns a bare array of records accessible to the authenticated doctor:
+ * [{ recordId, owner, ownerName, label, uploadedAt, cid, fileHash }]
+ * Error: RPC_ERROR (503) when node is unavailable.
+ * @returns {Promise<Array<{ recordId: string, owner: string, ownerName: string, label: string, uploadedAt: string, cid: string, fileHash: string }>>}
+ */
+export async function getSharedWithMe() {
+  if (USE_MOCK) {
+    return [];
+  }
+  const response = await api.get('/records/shared-with-me');
+  return response.data;
+}
+
+/**
+ * GET /audit-trail
+ * Returns paginated role-scoped on-chain audit trail events:
+ * { total, limit, offset, events: [{ type, eventName, recordId, label, owner, ownerName, doctor, doctorName, cid, fileHash, txHash, blockNumber, timestamp }] }
+ * Error: RPC_ERROR (503) when node is unavailable.
+ * @param {number} [limit=20]
+ * @param {number} [offset=0]
+ * @returns {Promise<{ total: number, limit: number, offset: number, events: Array<object> }>}
+ */
+export async function getAuditTrail(limit = 20, offset = 0) {
+  if (USE_MOCK) {
+    return { total: 0, limit, offset, events: [] };
+  }
+  const response = await api.get('/audit-trail', {
+    params: { limit, offset },
+  });
   return response.data;
 }

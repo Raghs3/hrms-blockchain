@@ -5,17 +5,22 @@
   "main": "src/server.js",
   "scripts": {
     "start": "node src/server.js",
-    "demo": "node scripts/demo-flow.js"
+    "test": "node --test test/**/*.test.js",
+    "demo": "node scripts/demo-flow.js",
+    "seed": "node scripts/seed.js",
+    "approve-doctor": "node scripts/approve-doctor.js"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "type": "commonjs",
   "dependencies": {
+    "bcryptjs": "^3.0.3",
     "cors": "^2.8.6",
     "dotenv": "^18.0.1",
     "ethers": "^6.17.0",
     "express": "^5.2.1",
+    "express-rate-limit": "^8.7.4",
     "jsonwebtoken": "^9.0.3",
     "multer": "^2.4.0"
   }

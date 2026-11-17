@@ -1,29 +1,65 @@
 import { useState } from 'react';
 import Modal from './Modal';
 import { grantAccess } from '../api/records';
+import { getDoctors } from '../api/auth';
 import { useToast } from '../context/ToastContext';
+import { useAuditTrail } from '../context/AuditTrailContext';
+
+const ADDRESS_REGEX = /^0x[a-fA-F0-9]{40}$/;
+
+function truncateHash(hash) {
+  if (!hash) return '';
+  if (hash.length <= 16) return hash;
+  return `${hash.slice(0, 10)}...${hash.slice(-8)}`;
+}
 
 /**
  * GrantAccessModal - Modal for granting a doctor access to a specific record.
  *
  * Props:
- *   record: { recordId, label } - The record to grant access to
- *   onSuccess: function - Called after successful grant
- *   trigger: React.ReactNode - The element that triggers the modal
+ *   record: { recordId, label, authorizedDoctors } - The record to grant access to
+ *   onSuccess: function - Called after successful grant to refresh list
  */
 export default function GrantAccessModal({ record, onSuccess }) {
   const { showToast } = useToast();
+  const { addAuditEvent } = useAuditTrail();
   const [isOpen, setIsOpen] = useState(false);
-  const [doctorAddress, setDoctorAddress] = useState('');
+  const [selectedAddress, setSelectedAddress] = useState('');
+  const [customAddress, setCustomAddress] = useState('');
+  const [isCustomMode, setIsCustomMode] = useState(false);
+  const [doctors, setDoctors] = useState([]);
+  const [loadingDoctors, setLoadingDoctors] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [grantResult, setGrantResult] = useState(null);
+  const [copied, setCopied] = useState(false);
 
-  function handleOpen() {
+  async function handleOpen() {
     setIsOpen(true);
-    setDoctorAddress('');
+    setSelectedAddress('');
+    setCustomAddress('');
+    setIsCustomMode(false);
     setError('');
     setGrantResult(null);
+    setCopied(false);
+    setLoadingDoctors(true);
+
+    try {
+      const data = await getDoctors();
+      const list = Array.isArray(data?.doctors) ? data.doctors : [];
+      setDoctors(list);
+      if (list.length > 0) {
+        setSelectedAddress(list[0].walletAddress);
+      } else {
+        setIsCustomMode(true);
+      }
+    } catch {
+      // If fetching doctors fails, fallback to custom address input
+      setDoctors([]);
+      setIsCustomMode(true);
+    } finally {
+      setLoadingDoctors(false);
+    }
   }
 
   function handleClose() {
@@ -31,28 +67,75 @@ export default function GrantAccessModal({ record, onSuccess }) {
     setIsOpen(false);
   }
 
+  function handleCopyTxHash(hash) {
+    if (!hash) return;
+    navigator.clipboard?.writeText(hash);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  }
+
   async function handleSubmit(e) {
     e.preventDefault();
     setError('');
 
-    const trimmed = doctorAddress.trim();
-    if (!trimmed) {
-      setError('Please enter the doctor\'s wallet address.');
+    const targetAddress = (isCustomMode ? customAddress : selectedAddress).trim();
+
+    if (!targetAddress) {
+      setError('Please select an approved doctor or enter a wallet address.');
+      return;
+    }
+
+    if (!ADDRESS_REGEX.test(targetAddress)) {
+      setError('Please enter a valid 42-character Ethereum address (0x...).');
+      return;
+    }
+
+    // Duplicate-grant guard: check if the doctor already appears in that record's authorizedDoctors
+    const existingList = record.authorizedDoctors || [];
+    const alreadyGranted = existingList.some(
+      (doc) => doc.walletAddress?.toLowerCase() === targetAddress.toLowerCase()
+    );
+
+    if (alreadyGranted) {
+      setError('This doctor already has access to this record.');
       return;
     }
 
     setLoading(true);
     try {
-      const result = await grantAccess(record.recordId, trimmed);
+      const result = await grantAccess(record.recordId, targetAddress);
       setGrantResult(result);
+
+      // Find doctor name for toast if available
+      const docMatch = doctors.find(
+        (d) => d.walletAddress?.toLowerCase() === targetAddress.toLowerCase()
+      );
+      const docDisplayName = docMatch?.name || `${targetAddress.slice(0, 6)}...${targetAddress.slice(-4)}`;
+
+      addAuditEvent({
+        type: 'ACCESS_GRANTED',
+        recordId: record.recordId,
+        label: record.label || `Record #${record.recordId}`,
+        doctorAddress: targetAddress,
+        doctorName: docDisplayName,
+        txHash: result.txHash,
+        timestamp: new Date().toISOString(),
+      });
+
       showToast({
         type: 'success',
         title: 'Access granted',
-        message: `Doctor can now access: ${record.label}`,
+        message: `${docDisplayName} can now access: ${record.label}`,
       });
-      onSuccess();
+
+      if (onSuccess) {
+        onSuccess();
+      }
     } catch (err) {
-      const message = err?.response?.data?.message || 'Failed to grant access. Please try again.';
+      let message = err?.message || 'Failed to grant access. Please try again.';
+      if (err?.code === 'NOT_A_PATIENT') {
+        message += ' Your wallet may not be registered on the current chain. Sign out and sign in again, then retry.';
+      }
       setError(message);
     } finally {
       setLoading(false);
@@ -62,6 +145,7 @@ export default function GrantAccessModal({ record, onSuccess }) {
   return (
     <>
       <button
+        type="button"
         className="btn btn-secondary"
         onClick={handleOpen}
         id={`grant-access-${record.recordId}`}
@@ -74,20 +158,49 @@ export default function GrantAccessModal({ record, onSuccess }) {
           <div className="modal-body">
             <div className="success-block">
               <div className="success-title">Access granted successfully</div>
-              <div className="success-detail">
+              <div className="success-detail" style={{ marginTop: '8px' }}>
+                <strong>Record ID:</strong>
+                <div className="hash-value" style={{ fontFamily: 'Courier New, monospace' }}>
+                  {record.recordId}
+                </div>
+              </div>
+              <div className="success-detail" style={{ marginTop: '10px' }}>
                 <strong>Transaction Hash:</strong>
-                <div className="hash-value">{grantResult.txHash}</div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '4px' }}>
+                  <span className="hash-value" title={grantResult.txHash} style={{ fontFamily: 'Courier New, monospace' }}>
+                    {truncateHash(grantResult.txHash)}
+                  </span>
+                  <button
+                    type="button"
+                    className="btn btn-secondary btn-sm"
+                    style={{ padding: '2px 8px', fontSize: '0.75rem' }}
+                    onClick={() => handleCopyTxHash(grantResult.txHash)}
+                    aria-label="Copy transaction hash"
+                  >
+                    {copied ? 'Copied!' : 'Copy'}
+                  </button>
+                </div>
               </div>
             </div>
           </div>
         ) : (
-          <form onSubmit={handleSubmit}>
+          <form onSubmit={handleSubmit} noValidate>
             <div className="modal-body">
-              <p style={{ fontSize: '1rem', color: 'var(--color-text-secondary)', marginBottom: '8px' }}>
-                Authorize a doctor to access this healthcare record.
+              <p style={{ fontSize: '0.9375rem', color: 'var(--color-text-secondary)', marginBottom: '8px' }}>
+                Authorize an approved healthcare doctor to view and decrypt this record on-chain.
               </p>
-              <div style={{ fontSize: '0.875rem', color: 'var(--color-text-muted)', marginBottom: '20px', padding: '8px 12px', background: 'var(--color-bg)', borderRadius: 'var(--radius-sm)' }}>
-                Record: <strong style={{ color: 'var(--color-text-primary)' }}>{record.label}</strong> ({record.recordId})
+              <div
+                style={{
+                  fontSize: '0.875rem',
+                  color: 'var(--color-text-muted)',
+                  marginBottom: '20px',
+                  padding: '10px 14px',
+                  background: 'var(--color-bg)',
+                  borderRadius: 'var(--radius-sm)',
+                  border: '1px solid var(--color-border-light)',
+                }}
+              >
+                Record: <strong style={{ color: 'var(--color-text-primary)' }}>{record.label}</strong> (ID: {record.recordId})
               </div>
 
               {error && (
@@ -100,23 +213,98 @@ export default function GrantAccessModal({ record, onSuccess }) {
                 </div>
               )}
 
-              <div className="form-group">
-                <label className="form-label" htmlFor="doctor-wallet-address">
-                  Doctor Wallet Address <span aria-hidden="true" style={{ color: 'var(--color-danger)' }}>*</span>
-                </label>
-                <input
-                  id="doctor-wallet-address"
-                  type="text"
-                  className="form-control"
-                  placeholder="0xDef456..."
-                  value={doctorAddress}
-                  onChange={(e) => setDoctorAddress(e.target.value)}
-                  disabled={loading}
-                  spellCheck="false"
-                  autoComplete="off"
-                />
-                <div className="form-hint">Enter the Ethereum wallet address of the doctor.</div>
-              </div>
+              {loadingDoctors ? (
+                <div style={{ padding: '16px 0', textAlign: 'center', color: 'var(--color-text-muted)' }}>
+                  <span className="spinner spinner-sm" aria-hidden="true" style={{ marginRight: '8px' }} />
+                  Loading approved doctors...
+                </div>
+              ) : (
+                <>
+                  {!isCustomMode && doctors.length > 0 ? (
+                    <div className="form-group">
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                        <label className="form-label" htmlFor="doctor-select" style={{ marginBottom: 0 }}>
+                          Select Approved Doctor <span aria-hidden="true" style={{ color: 'var(--color-danger)' }}>*</span>
+                        </label>
+                        <button
+                          type="button"
+                          className="btn-link"
+                          style={{ fontSize: '0.8125rem', color: 'var(--color-primary)', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
+                          onClick={() => {
+                            setIsCustomMode(true);
+                            setError('');
+                          }}
+                        >
+                          Enter custom address
+                        </button>
+                      </div>
+                      <select
+                        id="doctor-select"
+                        className="form-select"
+                        value={selectedAddress}
+                        onChange={(e) => {
+                          setSelectedAddress(e.target.value);
+                          setError('');
+                        }}
+                        disabled={loading}
+                      >
+                        {doctors.map((doc) => (
+                          <option key={doc.walletAddress} value={doc.walletAddress}>
+                            {doc.name} ({doc.walletAddress.slice(0, 6)}...{doc.walletAddress.slice(-4)})
+                          </option>
+                        ))}
+                      </select>
+                      <div className="form-hint" style={{ marginTop: '6px', fontSize: '0.8125rem', color: 'var(--color-text-muted)', fontFamily: 'Courier New, monospace' }}>
+                        Wallet: {selectedAddress}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="form-group">
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                        <label className="form-label" htmlFor="custom-doctor-address" style={{ marginBottom: 0 }}>
+                          Doctor Wallet Address <span aria-hidden="true" style={{ color: 'var(--color-danger)' }}>*</span>
+                        </label>
+                        {doctors.length > 0 && (
+                          <button
+                            type="button"
+                            className="btn-link"
+                            style={{ fontSize: '0.8125rem', color: 'var(--color-primary)', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
+                            onClick={() => {
+                              setIsCustomMode(false);
+                              setError('');
+                            }}
+                          >
+                            Choose from approved doctors
+                          </button>
+                        )}
+                      </div>
+                      {doctors.length === 0 && (
+                        <div style={{ fontSize: '0.8125rem', color: 'var(--color-text-muted)', marginBottom: '8px' }}>
+                          No approved doctors yet. You can paste a doctor's wallet address directly.
+                        </div>
+                      )}
+                      <input
+                        id="custom-doctor-address"
+                        type="text"
+                        className="form-control"
+                        placeholder="0x..."
+                        value={customAddress}
+                        onChange={(e) => {
+                          setCustomAddress(e.target.value);
+                          setError('');
+                        }}
+                        disabled={loading}
+                        spellCheck="false"
+                        autoComplete="off"
+                        required
+                      />
+                      <div className="form-hint" style={{ marginTop: '4px', fontSize: '0.8125rem', color: 'var(--color-text-muted)' }}>
+                        Enter the 42-character Ethereum address of the doctor.
+                      </div>
+                    </div>
+                  )}
+                </>
+              )}
             </div>
 
             <div className="modal-footer">
@@ -131,7 +319,7 @@ export default function GrantAccessModal({ record, onSuccess }) {
               <button
                 type="submit"
                 className="btn btn-primary"
-                disabled={loading}
+                disabled={loading || loadingDoctors}
                 id={`grant-submit-${record.recordId}`}
               >
                 {loading ? (
@@ -149,7 +337,7 @@ export default function GrantAccessModal({ record, onSuccess }) {
 
         {grantResult && (
           <div className="modal-footer">
-            <button className="btn btn-secondary" onClick={handleClose}>
+            <button type="button" className="btn btn-secondary" onClick={handleClose}>
               Done
             </button>
           </div>
