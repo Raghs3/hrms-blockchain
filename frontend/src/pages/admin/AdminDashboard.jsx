@@ -1,6 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import Layout from '../../components/Layout';
+import LoadingState from '../../components/LoadingState';
+import EmptyState from '../../components/EmptyState';
 import { useAuth } from '../../context/AuthContext';
 import useDocumentTitle from '../../hooks/useDocumentTitle';
 import api from '../../api/axios';
@@ -20,7 +22,80 @@ export default function AdminDashboard() {
   const [pingLatency, setPingLatency] = useState(null);
   const [lastCheckTime, setLastCheckTime] = useState(null);
 
+  // Pending doctors state
+  const [pendingDoctors, setPendingDoctors] = useState([]);
+  const [loadingDoctors, setLoadingDoctors] = useState(true);
+  const [doctorsError, setDoctorsError] = useState('');
+  const [actionLoading, setActionLoading] = useState({});
+  const [actionError, setActionError] = useState('');
+  const [actionSuccess, setActionSuccess] = useState('');
+  const [copiedAddress, setCopiedAddress] = useState('');
+
   const approvalCommand = `npm run approve-doctor -- ${doctorEmail.trim() || '<email>'}`;
+
+  const fetchPendingDoctors = useCallback(async () => {
+    setLoadingDoctors(true);
+    setDoctorsError('');
+    try {
+      const res = await api.get('/admin/pending-doctors');
+      setPendingDoctors(Array.isArray(res.data?.doctors) ? res.data.doctors : []);
+    } catch (err) {
+      setDoctorsError(err?.message || 'Failed to load pending doctor applications.');
+    } finally {
+      setLoadingDoctors(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchPendingDoctors();
+  }, [fetchPendingDoctors]);
+
+  async function handleApprove(doc) {
+    const id = doc.id || doc.email;
+    setActionLoading((prev) => ({ ...prev, [doc.id]: 'approving' }));
+    setActionError('');
+    setActionSuccess('');
+    try {
+      await api.post(`/admin/doctors/${encodeURIComponent(id)}/approve`);
+      setActionSuccess(`Successfully approved Dr. ${doc.name} (${doc.email}). Registered in UserRegistry.`);
+      await fetchPendingDoctors();
+    } catch (err) {
+      setActionError(err?.message || `Failed to approve doctor ${doc.email}.`);
+    } finally {
+      setActionLoading((prev) => {
+        const next = { ...prev };
+        delete next[doc.id];
+        return next;
+      });
+    }
+  }
+
+  async function handleReject(doc) {
+    const id = doc.id || doc.email;
+    setActionLoading((prev) => ({ ...prev, [doc.id]: 'rejecting' }));
+    setActionError('');
+    setActionSuccess('');
+    try {
+      await api.post(`/admin/doctors/${encodeURIComponent(id)}/reject`);
+      setActionSuccess(`Registration for Dr. ${doc.name} (${doc.email}) was rejected.`);
+      await fetchPendingDoctors();
+    } catch (err) {
+      setActionError(err?.message || `Failed to reject doctor ${doc.email}.`);
+    } finally {
+      setActionLoading((prev) => {
+        const next = { ...prev };
+        delete next[doc.id];
+        return next;
+      });
+    }
+  }
+
+  function handleCopyAddress(address) {
+    if (!address) return;
+    navigator.clipboard?.writeText(address);
+    setCopiedAddress(address);
+    setTimeout(() => setCopiedAddress(''), 2000);
+  }
 
   function handleCopyCommand() {
     navigator.clipboard?.writeText(approvalCommand);
@@ -210,37 +285,195 @@ export default function AdminDashboard() {
         </div>
       </div>
 
-      {/* Practitioner Approval Station */}
+      {/* Pending Medical Practitioner Approvals */}
       <div className="card" style={{ marginTop: '24px' }}>
-        <div className="card-header">
+        <div className="card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
           <div>
-            <h2>Practitioner On-Chain Approval Station</h2>
+            <h2>Pending Medical Practitioner Approvals</h2>
             <p style={{ fontSize: '0.875rem', color: 'var(--color-text-muted)', marginTop: '4px' }}>
-              Authorize medical practitioners and register their cryptographic wallet addresses in <code>UserRegistry.sol</code>.
+              Review applicant credentials, authorize cryptographic DOCTOR_ROLE, or reject registration.
             </p>
           </div>
-        </div>
-        <div className="card-body">
-          <div
-            style={{
-              padding: '16px 20px',
-              backgroundColor: 'var(--color-surface)',
-              borderRadius: 'var(--radius-md)',
-              border: '1px solid var(--color-border-light)',
-              marginBottom: '20px',
-            }}
+          <button
+            type="button"
+            className="btn btn-secondary btn-sm"
+            onClick={fetchPendingDoctors}
+            disabled={loadingDoctors}
+            title="Refresh pending applications"
+            id="refresh-pending-doctors-btn"
           >
-            <div style={{ fontSize: '0.875rem', fontWeight: 600, color: 'var(--color-text-primary)', marginBottom: '6px' }}>
-              How Doctor Approval Works in HealthChain:
-            </div>
-            <ol style={{ fontSize: '0.8125rem', color: 'var(--color-text-secondary)', paddingLeft: '20px', lineHeight: 1.6 }}>
-              <li>Doctors register via the portal with role <code>doctor</code> and receive initial status <code>pending</code>.</li>
-              <li>Hospital administrators verify credentials and run the cryptographic approval pipeline.</li>
-              <li>The pipeline derives the deterministic wallet and executes <code>UserRegistry.registerDoctor(wallet)</code> on the blockchain.</li>
-              <li>Once registered on-chain, the practitioner can immediately check access and view authorized patient records.</li>
-            </ol>
-          </div>
+            {loadingDoctors ? 'Refreshing...' : 'Refresh List'}
+          </button>
+        </div>
 
+        {actionSuccess && (
+          <div className="success-state" role="status" style={{ margin: '16px 20px 0' }} id="admin-action-success">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+              <circle cx="8" cy="8" r="7" stroke="currentColor" strokeWidth="1.5" />
+              <path d="M5 8l2 2 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+            <span>{actionSuccess}</span>
+          </div>
+        )}
+
+        {actionError && (
+          <div className="error-state" role="alert" style={{ margin: '16px 20px 0' }} id="admin-action-error">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+              <circle cx="8" cy="8" r="7" stroke="currentColor" strokeWidth="1.5" />
+              <path d="M8 5v4M8 11v.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+            </svg>
+            <span>{actionError}</span>
+          </div>
+        )}
+
+        <div className="card-body">
+          {loadingDoctors ? (
+            <LoadingState message="Loading pending doctor applications..." />
+          ) : doctorsError ? (
+            <div className="error-state" role="alert">
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                <circle cx="8" cy="8" r="7" stroke="currentColor" strokeWidth="1.5" />
+                <path d="M8 5v4M8 11v.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+              </svg>
+              <span>{doctorsError}</span>
+              <button
+                type="button"
+                className="btn btn-secondary btn-sm"
+                onClick={fetchPendingDoctors}
+                style={{ marginLeft: '12px' }}
+              >
+                Retry
+              </button>
+            </div>
+          ) : pendingDoctors.length === 0 ? (
+            <EmptyState
+              title="No Pending Doctor Registrations"
+              description="All practitioner applications have been reviewed. New applicant registrations will appear here for administrative approval."
+            />
+          ) : (
+            <div className="table-wrapper">
+              <table className="data-table" aria-label="Pending doctor applications">
+                <thead>
+                  <tr>
+                    <th scope="col">Practitioner</th>
+                    <th scope="col">Email Address</th>
+                    <th scope="col">Derived Wallet</th>
+                    <th scope="col">Registration Date</th>
+                    <th scope="col">Status</th>
+                    <th scope="col" style={{ textAlign: 'right' }}>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {pendingDoctors.map((doc) => {
+                    const isApproving = actionLoading[doc.id] === 'approving';
+                    const isRejecting = actionLoading[doc.id] === 'rejecting';
+                    const isBusy = Boolean(actionLoading[doc.id]);
+                    const isCopied = copiedAddress === doc.walletAddress;
+                    const safeId = (doc.id || doc.email || 'doc').replace(/[^a-zA-Z0-9]/g, '-');
+
+                    return (
+                      <tr key={doc.id || doc.email}>
+                        <td>
+                          <div className="table-cell-primary">{doc.name || 'Dr. Applicant'}</div>
+                          <div className="table-cell-secondary" style={{ fontFamily: 'ui-monospace, monospace' }}>
+                            ID: {doc.id ? `${doc.id.slice(0, 8)}...` : '—'}
+                          </div>
+                        </td>
+                        <td>
+                          <div className="table-cell-primary">{doc.email}</div>
+                        </td>
+                        <td>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            <code
+                              style={{
+                                fontFamily: 'ui-monospace, monospace',
+                                fontSize: '0.8125rem',
+                              }}
+                              title={doc.walletAddress}
+                            >
+                              {doc.walletAddress
+                                ? `${doc.walletAddress.slice(0, 6)}...${doc.walletAddress.slice(-4)}`
+                                : '—'}
+                            </code>
+                            {doc.walletAddress && (
+                              <button
+                                type="button"
+                                className="btn btn-secondary btn-sm"
+                                onClick={() => handleCopyAddress(doc.walletAddress)}
+                                title="Copy full wallet address"
+                                style={{ padding: '2px 6px', fontSize: '0.7rem' }}
+                              >
+                                {isCopied ? 'Copied' : 'Copy'}
+                              </button>
+                            )}
+                          </div>
+                        </td>
+                        <td>
+                          <span style={{ fontSize: '0.8125rem', color: 'var(--color-text-secondary)' }}>
+                            {doc.createdAt
+                              ? new Date(doc.createdAt).toLocaleDateString(undefined, {
+                                  month: 'short',
+                                  day: 'numeric',
+                                  year: 'numeric',
+                                })
+                              : 'Recent'}
+                          </span>
+                        </td>
+                        <td>
+                          <span className="badge badge-revoked" style={{ backgroundColor: '#fef3c7', color: '#b45309' }}>
+                            Pending Approval
+                          </span>
+                        </td>
+                        <td style={{ textAlign: 'right' }}>
+                          <div style={{ display: 'inline-flex', gap: '8px', alignItems: 'center' }}>
+                            <button
+                              type="button"
+                              className="btn btn-primary btn-sm"
+                              onClick={() => handleApprove(doc)}
+                              disabled={isBusy}
+                              id={`approve-doctor-${safeId}`}
+                            >
+                              {isApproving ? 'Approving...' : 'Approve'}
+                            </button>
+                            <button
+                              type="button"
+                              className="btn btn-danger-outline btn-sm"
+                              onClick={() => handleReject(doc)}
+                              disabled={isBusy}
+                              id={`reject-doctor-${safeId}`}
+                            >
+                              {isRejecting ? 'Rejecting...' : 'Reject'}
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Collapsed Fallback: CLI Command Generator */}
+      <details
+        style={{
+          marginTop: '24px',
+          border: '1px solid var(--color-border-light)',
+          borderRadius: 'var(--radius-md)',
+          padding: '16px 20px',
+          backgroundColor: 'var(--color-surface)',
+        }}
+        id="cli-fallback-details"
+      >
+        <summary style={{ cursor: 'pointer', fontWeight: 600, fontSize: '0.9375rem', color: 'var(--color-text-primary)' }}>
+          Manual Administrative CLI Tool (Fallback)
+        </summary>
+        <div style={{ marginTop: '16px' }}>
+          <p style={{ fontSize: '0.875rem', color: 'var(--color-text-muted)', marginBottom: '16px' }}>
+            If you need to approve a doctor directly via terminal script instead of the live web pipeline:
+          </p>
           <div className="form-group">
             <label className="form-label" htmlFor="doctor-email-input">
               Practitioner Email Address to Approve
@@ -262,21 +495,10 @@ export default function AdminDashboard() {
               >
                 Demo Doctor
               </button>
-              <button
-                type="button"
-                className="btn btn-secondary btn-sm"
-                onClick={() => setDoctorEmail('new.doctor@hospital.org')}
-              >
-                Sample Applicant
-              </button>
             </div>
           </div>
 
-          {/* Generated Command Box */}
-          <div style={{ marginTop: '16px' }}>
-            <div style={{ fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--color-text-muted)', fontWeight: 'bold', marginBottom: '6px' }}>
-              Generated Administrative CLI Command
-            </div>
+          <div style={{ marginTop: '12px' }}>
             <div
               style={{
                 display: 'flex',
@@ -306,7 +528,7 @@ export default function AdminDashboard() {
             </div>
           </div>
         </div>
-      </div>
+      </details>
 
       {/* System Staff Roster */}
       <div className="card" style={{ marginTop: '24px' }}>
