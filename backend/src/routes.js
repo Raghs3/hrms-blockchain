@@ -229,11 +229,20 @@ router.get("/records/:id/view", requireAuth(), parseRecordId, wrap(async (req, r
   if (sha256Hex(plaintext) !== record.fileHash) {
     return res.status(500).json({ error: "INTEGRITY_CHECK_FAILED" });
   }
+
+  const recordIdStr = req.recordId.toString();
+  const meta = store.getRecordMetadata(recordIdStr);
+  const isText = !meta.mimeType || meta.mimeType === "text/plain";
+
   res.json({
-    recordId: req.recordId.toString(),
+    recordId: recordIdStr,
     owner: record.owner,
-    label: store.getLabel(req.recordId.toString()),
-    content: plaintext.toString("utf8"),
+    label: store.getLabel(recordIdStr),
+    content: isText ? plaintext.toString("utf8") : plaintext.toString("base64"),
+    encoding: isText ? "utf8" : "base64",
+    mimeType: meta.mimeType || "text/plain",
+    originalFileName: meta.originalFileName || null,
+    sizeBytes: meta.sizeBytes !== null ? meta.sizeBytes : plaintext.length,
   });
 }));
 
