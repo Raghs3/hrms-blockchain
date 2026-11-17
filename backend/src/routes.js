@@ -1,7 +1,7 @@
 const express = require("express");
 const multer = require("multer");
 const { ethers } = require("ethers");
-const { provider, recordRegistry, runAsWallet } = require("./chain");
+const { provider, recordRegistry, runAsWallet, ensureFunded } = require("./chain");
 const {
   register,
   login,
@@ -35,7 +35,16 @@ const CONTRACT_ERRORS = {
   NotADoctor: [400, "NOT_A_DOCTOR"],
   NotRecordOwner: [403, "NOT_RECORD_OWNER"],
   RecordDoesNotExist: [404, "RECORD_NOT_FOUND"],
+  AccessDenied: [403, "ACCESS_DENIED"],
+  ExpiryInPast: [400, "EXPIRY_IN_PAST"],
+  PurposeRequired: [400, "PURPOSE_REQUIRED"],
+  PurposeTooLong: [400, "PURPOSE_TOO_LONG"],
 };
+
+// Consent defaults used only when the client sends no purpose / expiry (older UI builds).
+// The contract itself always requires a purpose.
+const DEFAULT_PURPOSE = "General care";
+const MAX_PURPOSE_BYTES = 128;
 
 // ethers decodes custom errors for read calls (err.revert) but not for transactions:
 // there the node's revert data only shows up as err.data, so decode it ourselves.
@@ -72,6 +81,35 @@ function requireDoctorAddress(req, res, next) {
   next();
 }
 
+// Optional body fields: purpose (string) and expiresAt (ISO date string; null/omitted = until revoked).
+function parseGrantTerms(req, res, next) {
+  const { purpose, expiresAt } = req.body || {};
+  let cleanPurpose = DEFAULT_PURPOSE;
+  if (purpose !== undefined && purpose !== null && purpose !== "") {
+    if (typeof purpose !== "string" || !purpose.trim()) {
+      return res.status(400).json({ error: "PURPOSE_REQUIRED", message: "purpose must be a non-empty string" });
+    }
+    cleanPurpose = purpose.trim();
+    if (Buffer.byteLength(cleanPurpose, "utf8") > MAX_PURPOSE_BYTES) {
+      return res.status(400).json({ error: "PURPOSE_TOO_LONG", message: `purpose must be at most ${MAX_PURPOSE_BYTES} bytes` });
+    }
+  }
+  let expiry = 0n;
+  if (expiresAt !== undefined && expiresAt !== null && expiresAt !== "") {
+    const ms = typeof expiresAt === "string" ? Date.parse(expiresAt) : NaN;
+    if (Number.isNaN(ms)) {
+      return res.status(400).json({ error: "INVALID_EXPIRY", message: "expiresAt must be an ISO date string or null" });
+    }
+    expiry = BigInt(Math.floor(ms / 1000));
+  }
+  req.grantPurpose = cleanPurpose;
+  req.grantExpiry = expiry;
+  next();
+}
+
+const expiryIso = (expiry) => (expiry > 0n ? new Date(Number(expiry) * 1000).toISOString() : null);
+const grantView = (g) => ({ purpose: g.purpose || null, expiresAt: expiryIso(g.expiry) });
+
 // The contract can only answer "does X have access?", so rebuild the list of
 // doctors from the AccessGranted event log and confirm each against the current state.
 async function authorizedDoctors(recordId) {
@@ -79,8 +117,9 @@ async function authorizedDoctors(recordId) {
   const candidates = [...new Set(grants.map((e) => e.args.doctor))];
   const current = [];
   for (const doctor of candidates) {
-    if (await recordRegistry.checkAccess(doctor, recordId)) {
-      current.push({ walletAddress: doctor, name: store.getName(doctor) });
+    const grant = await recordRegistry.getGrant(recordId, doctor);
+    if (grant.active) {
+      current.push({ walletAddress: doctor, name: store.getName(doctor), ...grantView(grant) });
     }
   }
   return current;
@@ -206,14 +245,15 @@ router.get("/records/shared-with-me", requireAuth("doctor"), wrap(async (req, re
     const asDoctor = recordRegistry.connect(req.wallet);
 
     for (const id of candidateIds) {
-      const hasAccess = await recordRegistry.checkAccess(doctorAddress, id);
-      if (hasAccess) {
+      const grant = await recordRegistry.getGrant(id, doctorAddress);
+      if (grant.active) {
         const record = await asDoctor.getRecord(id);
         const meta = store.getRecordMetadata(id.toString());
         records.push({
           recordId: id.toString(),
           owner: record.owner,
           ownerName: store.getName(record.owner),
+          ...grantView(grant),
           label: store.getLabel(id.toString()),
           uploadedAt: new Date(Number(record.timestamp) * 1000).toISOString(),
           cid: record.cid,
@@ -235,13 +275,15 @@ router.get("/records/shared-with-me", requireAuth("doctor"), wrap(async (req, re
   }
 }));
 
-router.post("/records/:id/grant", requireAuth("patient"), parseRecordId, requireDoctorAddress, wrap(async (req, res) => {
+router.post("/records/:id/grant", requireAuth("patient"), parseRecordId, requireDoctorAddress, parseGrantTerms, wrap(async (req, res) => {
   const tx = await runAsWallet(req.wallet, async () => {
-    const sent = await recordRegistry.connect(req.wallet).grantAccess(req.recordId, req.doctorAddress);
+    const sent = await recordRegistry
+      .connect(req.wallet)
+      .grantAccess(req.recordId, req.doctorAddress, req.grantExpiry, req.grantPurpose);
     await sent.wait();
     return sent;
   });
-  res.json({ txHash: tx.hash, status: "granted" });
+  res.json({ txHash: tx.hash, status: "granted", purpose: req.grantPurpose, expiresAt: expiryIso(req.grantExpiry) });
 }));
 
 router.post("/records/:id/revoke", requireAuth("patient"), parseRecordId, requireDoctorAddress, wrap(async (req, res) => {
@@ -263,14 +305,36 @@ router.get("/records/:id/access-check", requireAuth(), parseRecordId, wrap(async
   }
 }));
 
-// The contract itself gates this call (getRecord reverts for anyone not authorized),
-// so the backend cannot hand out a file the chain has not approved.
+// Log-before-release. Order of operations:
+//   1. getRecord from the caller's own wallet: the contract refuses anyone without a live
+//      grant (a free call, so a denied request costs no gas and writes nothing).
+//   2. fetch + decrypt + verify the hash. Nothing has left the server yet.
+//   3. recordAccess(): a transaction from the caller's wallet, awaited until mined. It reverts
+//      unless the caller is the owner or holds a live grant, and emits AccessReceipt.
+//   4. only now is the content returned, together with the receipt's tx hash.
+// If step 3 fails, no content is released, so no read is ever unlogged.
 router.get("/records/:id/view", requireAuth(), parseRecordId, wrap(async (req, res) => {
-  const record = await recordRegistry.connect(req.wallet).getRecord(req.recordId);
+  const asCaller = recordRegistry.connect(req.wallet);
+  const record = await asCaller.getRecord(req.recordId);
   const plaintext = decrypt(await ipfs.fetchByCid(record.cid));
   if (sha256Hex(plaintext) !== record.fileHash) {
     return res.status(500).json({ error: "INTEGRITY_CHECK_FAILED" });
   }
+
+  await ensureFunded(req.wallet);
+  const { sent, mined } = await runAsWallet(req.wallet, async () => {
+    const tx = await asCaller.recordAccess(req.recordId);
+    return { sent: tx, mined: await tx.wait() };
+  });
+  const receiptLog = mined.logs
+    .map((log) => {
+      try {
+        return recordRegistry.interface.parseLog(log);
+      } catch {
+        return null;
+      }
+    })
+    .find((parsed) => parsed?.name === "AccessReceipt");
 
   const recordIdStr = req.recordId.toString();
   const meta = store.getRecordMetadata(recordIdStr);
@@ -287,7 +351,57 @@ router.get("/records/:id/view", requireAuth(), parseRecordId, wrap(async (req, r
     mimeType: meta.mimeType || "text/plain",
     originalFileName: meta.originalFileName || null,
     sizeBytes: meta.sizeBytes !== null ? meta.sizeBytes : plaintext.length,
+    accessReceipt: {
+      txHash: sent.hash,
+      blockNumber: Number(mined.blockNumber),
+      timestamp: receiptLog ? new Date(Number(receiptLog.args.timestamp) * 1000).toISOString() : null,
+    },
   });
+}));
+
+// Who actually opened what. Patient: reads of their own records (by anyone; selfAccess marks
+// their own views). Doctor: their own reads. Admin: everything. Every row is an on-chain
+// AccessReceipt, so it carries a transaction hash. Optional ?recordId= filter.
+router.get("/access-receipts", requireAuth(), wrap(async (req, res) => {
+  const role = req.accountRecord?.role || req.user?.role;
+  const address = req.wallet?.address;
+  const f = recordRegistry.filters;
+  const recordFilter = /^\d+$/.test(String(req.query.recordId ?? "")) ? BigInt(req.query.recordId) : null;
+
+  let logs;
+  try {
+    if (role === "admin") logs = await recordRegistry.queryFilter(f.AccessReceipt(recordFilter));
+    else if (role === "patient") logs = await recordRegistry.queryFilter(f.AccessReceipt(recordFilter, address));
+    else if (role === "doctor") logs = await recordRegistry.queryFilter(f.AccessReceipt(recordFilter, null, address));
+    else return res.status(403).json({ error: "WRONG_ROLE" });
+  } catch (err) {
+    if (err?.code === "NETWORK_ERROR" || err?.code === "SERVER_ERROR") {
+      return res.status(503).json({ error: "RPC_ERROR", message: "Blockchain RPC node unavailable" });
+    }
+    throw err;
+  }
+
+  logs.sort((a, b) => Number(b.blockNumber) - Number(a.blockNumber) || Number(b.index ?? 0) - Number(a.index ?? 0));
+  const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 50, 1), 100);
+  const offset = Math.max(parseInt(req.query.offset, 10) || 0, 0);
+
+  const receipts = logs.slice(offset, offset + limit).map((log) => {
+    const recordId = log.args.recordId.toString();
+    const { owner, accessor } = log.args;
+    return {
+      recordId,
+      label: store.getLabel(recordId),
+      owner,
+      ownerName: store.getName(owner),
+      accessor,
+      accessorName: store.getName(accessor),
+      selfAccess: owner.toLowerCase() === accessor.toLowerCase(),
+      timestamp: new Date(Number(log.args.timestamp) * 1000).toISOString(),
+      txHash: log.transactionHash,
+      blockNumber: Number(log.blockNumber),
+    };
+  });
+  res.json({ total: logs.length, limit, offset, receipts });
 }));
 
 async function getBlockTimestamp(blockNumber, cache) {
@@ -383,6 +497,8 @@ router.get("/audit-trail", requireAuth(), wrap(async (req, res) => {
           ownerName: args.owner ? store.getName(args.owner) : null,
           doctor: args.doctor || null,
           doctorName: args.doctor ? store.getName(args.doctor) : null,
+          purpose: eventName === "AccessGranted" ? args.purpose || null : null,
+          expiresAt: eventName === "AccessGranted" ? expiryIso(args.expiry) : null,
           cid: args.cid || null,
           fileHash: args.fileHash || null,
           mimeType: meta ? meta.mimeType : null,

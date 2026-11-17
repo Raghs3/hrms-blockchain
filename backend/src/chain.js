@@ -70,15 +70,21 @@ function ensureRegistered(wallet, role) {
   return registrations.get(key);
 }
 
+// Every user needs gas: patients send addRecord/grant/revoke, and doctors now send a
+// recordAccess transaction for every read (log-before-release). Runs for already
+// registered users too, so doctors that predate receipts get topped up at next login.
+async function ensureFunded(wallet) {
+  if ((await provider.getBalance(wallet.address)) >= MIN_BALANCE) return;
+  await runAsAdmin(async () => {
+    const tx = await admin.sendTransaction({ to: wallet.address, value: ethers.parseEther("1") });
+    await tx.wait();
+  });
+}
+
 async function register(wallet, role) {
+  await ensureFunded(wallet);
   if (role === "patient") {
     if (await userRegistry.isPatient(wallet.address)) return;
-    if ((await provider.getBalance(wallet.address)) < MIN_BALANCE) {
-      await runAsAdmin(async () => {
-        const tx = await admin.sendTransaction({ to: wallet.address, value: ethers.parseEther("1") });
-        await tx.wait();
-      });
-    }
     await (await userRegistry.connect(wallet).registerAsPatient()).wait();
   } else {
     if (await userRegistry.isDoctor(wallet.address)) return;
@@ -88,4 +94,4 @@ async function register(wallet, role) {
   }
 }
 
-module.exports = { provider, userRegistry, recordRegistry, walletFor, walletForAccount, ensureRegistered, runAsWallet };
+module.exports = { provider, userRegistry, recordRegistry, walletFor, walletForAccount, ensureRegistered, ensureFunded, runAsWallet };
