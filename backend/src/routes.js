@@ -98,6 +98,11 @@ router.get("/admin/pending-doctors", requireAuth("admin"), wrap(async (req, res)
   res.json({ doctors: pending });
 }));
 
+// All practitioner accounts (pending, approved, rejected/disabled) for the admin roster.
+router.get("/admin/doctors", requireAuth("admin"), wrap(async (req, res) => {
+  res.json({ doctors: store.listDoctors().map(sanitizeUser) });
+}));
+
 router.post("/admin/doctors/:id/approve", requireAuth("admin"), wrap(async (req, res) => {
   try {
     const { account } = await approveDoctor(req.params.id);

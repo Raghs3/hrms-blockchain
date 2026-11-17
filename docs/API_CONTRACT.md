@@ -100,6 +100,20 @@
 
 ---
 
+### `GET /admin/doctors`
+**File:** `routes.js`  
+**Auth:** Bearer token (admin only)
+
+| Scenario | Status | Response |
+|---|---|---|
+| Success | 200 | `{ doctors: [User] }` (every doctor account: status `"pending"`, `"approved"` or `"rejected"`) |
+| Unauthenticated | 401 | `{ error: "INVALID_TOKEN" }` |
+| Wrong role (patient/doctor) | 403 | `{ error: "WRONG_ROLE" }` |
+
+*Feeds the admin portal's practitioner roster. `"rejected"` is shown as "Disabled" in the UI.*
+
+---
+
 ### `POST /admin/doctors/:id/approve`
 **File:** `routes.js` → `auth.js:approveDoctor`  
 **Auth:** Bearer token (admin only)  
@@ -130,7 +144,7 @@
 | Unauthenticated | 401 | `{ error: "INVALID_TOKEN" }` |
 | Wrong role (patient/doctor) | 403 | `{ error: "WRONG_ROLE" }` |
 
-*Updates store status to `"rejected"`. Login attempts for this doctor will return 403 `DOCTOR_REJECTED`.*
+*Updates store status to `"rejected"`. Login attempts for this doctor will return 403 `DOCTOR_REJECTED`. It also works on an already-approved doctor (this is the admin portal's **Disable** button): any token the doctor already holds is refused with 403 `DOCTOR_REJECTED` on its next request, and the doctor disappears from `GET /doctors`. The on-chain doctor role is not removed (the contract has no function for it); the backend refuses to act for the account. Calling `/approve` again re-enables the doctor.*
 
 ---
 

@@ -110,7 +110,7 @@ export default function Login() {
       navigate(home, { replace: true });
     } catch (err) {
       if (err?.code === 'DOCTOR_REJECTED') {
-        setError('Your doctor registration was rejected by the administrator.');
+        setError('Your doctor account has been rejected or disabled by the administrator.');
       } else if (err?.code === 'DOCTOR_PENDING') {
         setError('Your doctor registration is pending approval by the hospital administrator.');
       } else {

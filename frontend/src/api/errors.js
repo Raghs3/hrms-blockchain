@@ -7,7 +7,7 @@ export const ERROR_MESSAGES = {
   // Auth error codes
   INVALID_CREDENTIALS: 'The email or password you entered is incorrect.',
   DOCTOR_PENDING: 'Your doctor registration is pending approval by the hospital administrator.',
-  DOCTOR_REJECTED: 'Your doctor registration was rejected by the administrator.',
+  DOCTOR_REJECTED: 'Your doctor account has been rejected or disabled by the administrator.',
   EMAIL_EXISTS: 'An account with this email address already exists.',
   VALIDATION_ERROR: 'Invalid input. Please check the entered fields and try again.',
   INVALID_TOKEN: 'Your session is invalid or has expired. Please log in again.',

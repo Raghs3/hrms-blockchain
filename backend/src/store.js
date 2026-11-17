@@ -102,6 +102,11 @@ module.exports = {
     load();
     return data.accounts.filter((a) => a.role === "doctor" && a.status === "approved");
   },
+  // Every doctor account whatever its status, for the admin roster.
+  listDoctors() {
+    load();
+    return data.accounts.filter((a) => a.role === "doctor");
+  },
   listPendingDoctors() {
     load();
     return data.accounts.filter((a) => a.role === "doctor" && a.status === "pending");
