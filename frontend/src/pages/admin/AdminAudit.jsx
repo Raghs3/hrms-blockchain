@@ -1,5 +1,6 @@
 import Layout from '../../components/Layout';
 import AuditTrail from '../../components/AuditTrail';
+import AccessReceipts from '../../components/AccessReceipts';
 import useDocumentTitle from '../../hooks/useDocumentTitle';
 
 /**
@@ -19,7 +20,15 @@ export default function AdminAudit() {
           </p>
         </div>
       </div>
-      <AuditTrail title="All activity" />
+      <AccessReceipts
+        viewer="admin"
+        title="Who opened records"
+        description="Every time anyone opens a record, a receipt is written to the blockchain first. This is the read-side of the audit trail."
+        maxItems={10}
+      />
+      <div style={{ marginTop: '24px' }}>
+        <AuditTrail title="All activity" />
+      </div>
     </Layout>
   );
 }
