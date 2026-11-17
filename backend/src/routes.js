@@ -152,6 +152,7 @@ router.get("/records/mine", requireAuth("patient"), wrap(async (req, res) => {
   const records = [];
   for (const id of ids) {
     const record = await asOwner.getRecord(id);
+    const meta = store.getRecordMetadata(id.toString());
     records.push({
       recordId: id.toString(),
       label: store.getLabel(id.toString()),
@@ -159,6 +160,9 @@ router.get("/records/mine", requireAuth("patient"), wrap(async (req, res) => {
       authorizedDoctors: await authorizedDoctors(id),
       cid: record.cid,
       fileHash: record.fileHash,
+      mimeType: meta.mimeType || "text/plain",
+      originalFileName: meta.originalFileName || null,
+      sizeBytes: meta.sizeBytes ?? null,
     });
   }
   res.json(records);
@@ -177,6 +181,7 @@ router.get("/records/shared-with-me", requireAuth("doctor"), wrap(async (req, re
       const hasAccess = await recordRegistry.checkAccess(doctorAddress, id);
       if (hasAccess) {
         const record = await asDoctor.getRecord(id);
+        const meta = store.getRecordMetadata(id.toString());
         records.push({
           recordId: id.toString(),
           owner: record.owner,
@@ -185,6 +190,9 @@ router.get("/records/shared-with-me", requireAuth("doctor"), wrap(async (req, re
           uploadedAt: new Date(Number(record.timestamp) * 1000).toISOString(),
           cid: record.cid,
           fileHash: record.fileHash,
+          mimeType: meta.mimeType || "text/plain",
+          originalFileName: meta.originalFileName || null,
+          sizeBytes: meta.sizeBytes ?? null,
         });
       }
     }
@@ -328,6 +336,8 @@ router.get("/audit-trail", requireAuth(), wrap(async (req, res) => {
           timestamp = await getBlockTimestamp(log.blockNumber, blockCache);
         }
 
+        const meta = recordId ? store.getRecordMetadata(recordId) : null;
+
         return {
           type,
           eventName,
@@ -339,6 +349,9 @@ router.get("/audit-trail", requireAuth(), wrap(async (req, res) => {
           doctorName: args.doctor ? store.getName(args.doctor) : null,
           cid: args.cid || null,
           fileHash: args.fileHash || null,
+          mimeType: meta ? meta.mimeType : null,
+          originalFileName: meta ? meta.originalFileName : null,
+          sizeBytes: meta ? meta.sizeBytes : null,
           txHash: log.transactionHash,
           blockNumber: Number(log.blockNumber),
           timestamp,
