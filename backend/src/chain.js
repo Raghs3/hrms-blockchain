@@ -23,6 +23,21 @@ function runAsAdmin(task) {
   return result;
 }
 
+// Same idea per user wallet: two simultaneous requests from one patient (parallel
+// uploads, a double-clicked Grant) must not send transactions with the same nonce.
+// Different wallets still run in parallel.
+const walletQueues = new Map();
+function runAsWallet(wallet, task) {
+  const key = wallet.address;
+  const result = (walletQueues.get(key) || Promise.resolve()).then(task);
+  const tail = result.catch(() => {});
+  walletQueues.set(key, tail);
+  tail.then(() => {
+    if (walletQueues.get(key) === tail) walletQueues.delete(key);
+  });
+  return result;
+}
+
 // Real-auth: derive wallet from WALLET_SECRET + accountId using HMAC-SHA256.
 // No private keys stored; same accountId always yields the same wallet.
 function walletForAccount(accountId) {
@@ -73,4 +88,4 @@ async function register(wallet, role) {
   }
 }
 
-module.exports = { provider, userRegistry, recordRegistry, walletFor, walletForAccount, ensureRegistered };
+module.exports = { provider, userRegistry, recordRegistry, walletFor, walletForAccount, ensureRegistered, runAsWallet };

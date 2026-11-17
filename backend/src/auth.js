@@ -66,6 +66,12 @@ async function register(req, res) {
   const status = role === "patient" ? "approved" : "pending";
   const wallet = walletForAccount(id);
 
+  // bcrypt is slow and async, so another request for the same email may have been
+  // created while we were hashing. Check again, with no await before createAccount.
+  if (store.findAccountByEmail(cleanEmail)) {
+    return res.status(409).json({ error: "EMAIL_EXISTS" });
+  }
+
   const account = store.createAccount({
     id,
     name: name.trim(),
@@ -230,6 +236,13 @@ function requireAuth(...allowedRoles) {
     if (claims.sub) {
       const account = store.findAccountById(claims.sub);
       if (!account) return res.status(401).json({ error: "INVALID_TOKEN" });
+
+      // A token outlives an admin's decision: a doctor who was rejected after logging in
+      // must lose access immediately, not when the 8h token expires.
+      if (account.role === "doctor" && account.status !== "approved") {
+        const code = account.status === "rejected" ? "DOCTOR_REJECTED" : "DOCTOR_PENDING";
+        return res.status(403).json({ error: code });
+      }
 
       // Role comes from the stored account only, never from the request
       if (allowedRoles.length && !allowedRoles.includes(account.role)) {
