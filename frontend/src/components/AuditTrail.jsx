@@ -342,7 +342,8 @@ export default function AuditTrail({ title = 'Activity history', maxItems }) {
               onClick={() => setFilter(chip.id)}
               aria-pressed={filter === chip.id}
             >
-              {chip.label} ({counts[chip.id]})
+              {chip.label} ({chip.id === 'ALL' && total ? total : counts[chip.id]}
+              {chip.id !== 'ALL' && hasMore ? '+' : ''})
             </button>
           ))}
         </div>

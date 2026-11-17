@@ -363,7 +363,7 @@ export default function AdminUsers({ view = 'all' }) {
                   <th scope="col">Status</th>
                   {showRecordsColumn && <th scope="col">Records</th>}
                   <th scope="col">Joined</th>
-                  <th scope="col" style={{ textAlign: 'right' }}>Actions</th>
+                  {view !== 'patient' && <th scope="col" style={{ textAlign: 'right' }}>Actions</th>}
                 </tr>
               </thead>
               <tbody>
@@ -414,7 +414,7 @@ export default function AdminUsers({ view = 'all' }) {
                     <td>
                       <span style={{ fontSize: '0.8125rem', color: 'var(--color-text-secondary)' }}>{formatDate(user.createdAt)}</span>
                     </td>
-                    <td style={{ textAlign: 'right' }}>{renderActions(user)}</td>
+                    {view !== 'patient' && <td style={{ textAlign: 'right' }}>{renderActions(user)}</td>}
                   </tr>
                 ))}
               </tbody>
