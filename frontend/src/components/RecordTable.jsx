@@ -130,8 +130,22 @@ export default function RecordTable({
                 {/* Record info */}
                 <td>
                   <div className="table-cell-primary">{record.label || 'Untitled Record'}</div>
-                  <div className="table-cell-secondary" style={{ fontFamily: 'Courier New, monospace' }}>
-                    ID: {record.recordId}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                    <span className="table-cell-secondary" style={{ fontFamily: 'Courier New, monospace' }}>
+                      ID: {record.recordId}
+                    </span>
+                    {mode !== 'records' && record.fileHash && (
+                      <span
+                        style={{
+                          fontSize: '0.725rem',
+                          fontFamily: 'ui-monospace, monospace',
+                          color: 'var(--color-text-muted)',
+                        }}
+                        title={`SHA-256: ${record.fileHash}`}
+                      >
+                        SHA-256: {truncateHash(record.fileHash)}
+                      </span>
+                    )}
                   </div>
                 </td>
 
