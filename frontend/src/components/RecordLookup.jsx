@@ -1,21 +1,7 @@
 import { useState, useEffect } from 'react';
 import LoadingState from './LoadingState';
+import RecordContentViewer, { isPrintableText, downloadRecordContent } from './RecordContentViewer';
 import { checkAccess, viewRecord } from '../api/records';
-
-/**
- * Checks whether content is printable plain text.
- * Returns false if it contains non-printable binary characters or binary headers.
- */
-function isPrintableText(content) {
-  if (typeof content !== 'string') return false;
-  if (content.startsWith('%PDF-')) return false;
-  // Non-printable control characters excluding standard whitespace (\t, \n, \r)
-  // eslint-disable-next-line no-control-regex
-  if (/[\x00-\x08\x0B\x0C\x0E-\x1F]/.test(content)) {
-    return false;
-  }
-  return true;
-}
 
 /**
  * RecordLookup - Self-contained component for Doctor record lookup,
@@ -41,6 +27,7 @@ export default function RecordLookup({ sessionHistory }) {
   const [viewLoading, setViewLoading] = useState(false);
   const [viewError, setViewError] = useState('');
   const [recordData, setRecordData] = useState(null); // { recordId, label, content } | null
+  const [copiedOwner, setCopiedOwner] = useState(false);
 
   // Privacy requirement: Clear displayed record content on unmount
   useEffect(() => {
@@ -48,6 +35,13 @@ export default function RecordLookup({ sessionHistory }) {
       setRecordData(null);
     };
   }, []);
+
+  function handleCopyOwner(addr) {
+    if (!addr) return;
+    navigator.clipboard?.writeText(addr);
+    setCopiedOwner(true);
+    setTimeout(() => setCopiedOwner(false), 2000);
+  }
 
   function handleInputChange(e) {
     const value = e.target.value;
@@ -339,13 +333,46 @@ export default function RecordLookup({ sessionHistory }) {
             aria-label="Record content"
             style={{ marginTop: '20px' }}
           >
-            <div className="record-viewer-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div className="record-viewer-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
               <div>
                 <div className="record-label">{recordData.label || 'Medical Record'}</div>
                 <div className="record-id">Record #{recordData.recordId}</div>
+                {recordData.owner && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.75rem', color: 'var(--color-text-muted)', marginTop: '2px' }}>
+                    <span>Patient Owner:</span>
+                    <span style={{ fontFamily: 'ui-monospace, monospace' }} title={recordData.owner}>
+                      {recordData.owner.slice(0, 8)}...{recordData.owner.slice(-6)}
+                    </span>
+                    <button
+                      type="button"
+                      className="btn-copy"
+                      onClick={() => handleCopyOwner(recordData.owner)}
+                      title="Copy patient wallet address"
+                      style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
+                    >
+                      {copiedOwner ? (
+                        <span style={{ fontSize: '0.7rem', color: 'var(--color-success)' }}>Copied!</span>
+                      ) : (
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+                          <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+                        </svg>
+                      )}
+                    </button>
+                  </div>
+                )}
               </div>
               <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
                 <span className="badge badge-authorized">Authorized</span>
+                <button
+                  type="button"
+                  className="btn btn-secondary btn-sm"
+                  onClick={() => downloadRecordContent(recordData.content, `${(recordData.label || 'record').replace(/[^a-zA-Z0-9_-]/g, '_')}.txt`)}
+                  id="doctor-download-record-btn"
+                  title="Download decrypted file"
+                >
+                  Download
+                </button>
                 <button
                   type="button"
                   className="btn btn-secondary btn-sm"
@@ -392,28 +419,7 @@ export default function RecordLookup({ sessionHistory }) {
               >
                 Record Content
               </div>
-              {isPrintableText(recordData.content) ? (
-                <pre
-                  className="record-content-text"
-                  style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}
-                >
-                  {recordData.content}
-                </pre>
-              ) : (
-                <div
-                  className="preview-not-supported"
-                  style={{
-                    padding: '16px',
-                    backgroundColor: '#f8fafc',
-                    borderRadius: 'var(--radius-md)',
-                    color: 'var(--color-text-secondary)',
-                    border: '1px solid var(--color-border-light)',
-                    fontSize: '0.9375rem',
-                  }}
-                >
-                  Preview not supported in this demo
-                </div>
-              )}
+              <RecordContentViewer content={recordData.content} label={recordData.label} />
             </div>
           </div>
         )}

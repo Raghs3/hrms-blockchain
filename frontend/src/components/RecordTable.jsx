@@ -1,8 +1,10 @@
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import LoadingState from './LoadingState';
 import EmptyState from './EmptyState';
 import GrantAccessModal from './GrantAccessModal';
 import RevokeAccessModal from './RevokeAccessModal';
+import ViewRecordModal from './ViewRecordModal';
 
 function truncateHash(hash) {
   if (!hash) return '—';
@@ -29,6 +31,16 @@ export default function RecordTable({
   onRetry,
   mode = 'all',
 }) {
+  const [viewingRecord, setViewingRecord] = useState(null);
+  const [copiedKey, setCopiedKey] = useState('');
+
+  function handleCopy(text, key) {
+    if (!text) return;
+    navigator.clipboard?.writeText(text);
+    setCopiedKey(key);
+    setTimeout(() => setCopiedKey(''), 2000);
+  }
+
   function formatDate(dateString) {
     if (!dateString) return '—';
     const date = new Date(dateString);
@@ -131,13 +143,61 @@ export default function RecordTable({
                 {/* IPFS CID column (for records mode) */}
                 {mode === 'records' && (
                   <td>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                      <span
-                        style={{ fontFamily: 'ui-monospace, monospace', fontSize: '0.8125rem' }}
-                        title={record.cid}
-                      >
-                        {truncateHash(record.cid)}
-                      </span>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <span style={{ fontSize: '0.725rem', color: 'var(--color-text-muted)', fontWeight: 600 }}>CID:</span>
+                        <span
+                          style={{ fontFamily: 'ui-monospace, monospace', fontSize: '0.8125rem' }}
+                          title={record.cid}
+                        >
+                          {truncateHash(record.cid)}
+                        </span>
+                        <button
+                          type="button"
+                          className="btn-copy"
+                          onClick={() => handleCopy(record.cid, `cid-${record.recordId}`)}
+                          title="Copy IPFS CID"
+                          style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
+                        >
+                          {copiedKey === `cid-${record.recordId}` ? (
+                            <span style={{ fontSize: '0.675rem', color: 'var(--color-success)' }}>Copied!</span>
+                          ) : (
+                            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                              <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+                              <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+                            </svg>
+                          )}
+                        </button>
+                      </div>
+
+                      {record.fileHash && (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          <span style={{ fontSize: '0.725rem', color: 'var(--color-text-muted)', fontWeight: 600 }}>SHA-256:</span>
+                          <span
+                            style={{ fontFamily: 'ui-monospace, monospace', fontSize: '0.8125rem' }}
+                            title={record.fileHash}
+                          >
+                            {truncateHash(record.fileHash)}
+                          </span>
+                          <button
+                            type="button"
+                            className="btn-copy"
+                            onClick={() => handleCopy(record.fileHash, `hash-${record.recordId}`)}
+                            title="Copy SHA-256 on-chain hash"
+                            style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
+                          >
+                            {copiedKey === `hash-${record.recordId}` ? (
+                              <span style={{ fontSize: '0.675rem', color: 'var(--color-success)' }}>Copied!</span>
+                            ) : (
+                              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+                                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+                              </svg>
+                            )}
+                          </button>
+                        </div>
+                      )}
+
                       <span
                         className="badge"
                         style={{
@@ -199,28 +259,44 @@ export default function RecordTable({
 
                 {/* Actions / Access Link */}
                 <td>
-                  {mode === 'records' || mode === 'preview' ? (
-                    <Link
-                      to="/patient/access"
+                  <div className="table-actions" style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+                    <button
+                      type="button"
                       className="btn btn-secondary btn-sm"
-                      id={`manage-access-${record.recordId}`}
+                      onClick={() => setViewingRecord(record)}
+                      id={`view-record-${record.recordId}`}
+                      title="View decrypted record content"
                     >
-                      Manage access
-                    </Link>
-                  ) : (
-                    <div className="table-actions">
+                      View
+                    </button>
+                    {mode === 'records' || mode === 'preview' ? (
+                      <Link
+                        to="/patient/access"
+                        className="btn btn-secondary btn-sm"
+                        id={`manage-access-${record.recordId}`}
+                      >
+                        Manage access
+                      </Link>
+                    ) : (
                       <GrantAccessModal
                         record={record}
                         onSuccess={() => onRecordUpdate && onRecordUpdate()}
                       />
-                    </div>
-                  )}
+                    )}
+                  </div>
                 </td>
               </tr>
             );
           })}
         </tbody>
       </table>
+
+      {/* Reusable View Record Modal */}
+      <ViewRecordModal
+        isOpen={Boolean(viewingRecord)}
+        onClose={() => setViewingRecord(null)}
+        record={viewingRecord}
+      />
     </div>
   );
 }

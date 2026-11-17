@@ -42,7 +42,7 @@ export default function Modal({ isOpen, onClose, title, children, size = 'md' })
 
   if (!isOpen) return null;
 
-  const maxWidth = size === 'sm' ? '380px' : '480px';
+  const maxWidth = size === 'sm' ? '380px' : size === 'lg' ? '640px' : '480px';
 
   return (
     <div
