@@ -89,3 +89,18 @@ export async function viewRecord(recordId) {
   const response = await api.get(`/records/${recordId}/view`);
   return response.data;
 }
+
+/**
+ * GET /records/shared-with-me
+ * Returns a bare array of records accessible to the authenticated doctor:
+ * [{ recordId, owner, ownerName, label, uploadedAt, cid, fileHash }]
+ * Error: RPC_ERROR (503) when node is unavailable.
+ * @returns {Promise<Array<{ recordId: string, owner: string, ownerName: string, label: string, uploadedAt: string, cid: string, fileHash: string }>>}
+ */
+export async function getSharedWithMe() {
+  if (USE_MOCK) {
+    return [];
+  }
+  const response = await api.get('/records/shared-with-me');
+  return response.data;
+}

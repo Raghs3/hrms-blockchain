@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import LoadingState from './LoadingState';
 import RecordContentViewer, { isPrintableText, downloadRecordContent } from './RecordContentViewer';
 import { checkAccess, viewRecord } from '../api/records';
@@ -17,8 +18,9 @@ import { checkAccess, viewRecord } from '../api/records';
  */
 export default function RecordLookup({ sessionHistory }) {
   const { lookups, addLookup, updateLookupResult, recordViewSuccess } = sessionHistory;
+  const [searchParams] = useSearchParams();
 
-  const [recordId, setRecordId] = useState('');
+  const [recordId, setRecordId] = useState(() => searchParams.get('recordId') || '');
   const [validationError, setValidationError] = useState('');
   const [checkLoading, setCheckLoading] = useState(false);
   const [checkError, setCheckError] = useState('');
@@ -28,6 +30,14 @@ export default function RecordLookup({ sessionHistory }) {
   const [viewError, setViewError] = useState('');
   const [recordData, setRecordData] = useState(null); // { recordId, label, content } | null
   const [copiedOwner, setCopiedOwner] = useState(false);
+
+  // Sync if search params change
+  useEffect(() => {
+    const qId = searchParams.get('recordId');
+    if (qId && /^\d+$/.test(qId)) {
+      setRecordId(qId);
+    }
+  }, [searchParams]);
 
   // Privacy requirement: Clear displayed record content on unmount
   useEffect(() => {
