@@ -15,7 +15,7 @@ export default function PatientUpload() {
         <div className="page-header-left">
           <h1>Upload Healthcare Record</h1>
           <p className="page-description">
-            Encrypt and pin a text-based medical record to IPFS with smart contract registration.
+            Encrypt and pin a medical record (PDF, image, Word or text file, up to 10 MB) to IPFS with smart contract registration.
           </p>
         </div>
       </div>

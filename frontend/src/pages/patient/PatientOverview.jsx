@@ -303,7 +303,7 @@ export default function PatientOverview() {
           }}
         >
           <li>Sign in with your registered email and password.</li>
-          <li>Upload a text-based medical record (.txt, .md, .csv, or .json); it is encrypted, pinned to IPFS, and registered on the blockchain.</li>
+          <li>Upload a medical record (.pdf, .png, .jpg, .doc, .docx, or .txt, up to 10 MB); it is encrypted, pinned to IPFS, and registered on the blockchain.</li>
           <li>Grant access to a doctor by picking an approved doctor from the dropdown or providing their wallet address.</li>
           <li>The doctor signs in to their portal, verifies access using the numeric Record ID, and decrypts the medical record content.</li>
           <li>When you wish to end access, click <strong>Revoke</strong> next to the doctor&apos;s name to immediately terminate access on-chain.</li>
