@@ -78,10 +78,12 @@ If `PINATA_JWT` is left empty, the backend falls back to storing files in a loca
 
 #### Demo accounts (created by `npm run seed`)
 
+One password per role: admin `Admin1234!`, doctors `Doctor1234!`, patients `Patient1234!`. The seed creates 1 admin, 4 patients and 6 doctors (3 approved, 2 pending, 1 rejected); the full list is in `backend/README.md`. The main logins are:
+
 | Role | Email | Password |
 | --- | --- | --- |
 | Admin | `admin@demo.local` | `Admin1234!` |
-| Doctor | `doctor@demo.local` | `Doctor1234!` |
+| Doctor (approved) | `doctor@demo.local` | `Doctor1234!` |
 | Patient | `patient@demo.local` | `Patient1234!` |
 
 These are local test credentials only. New doctors who register stay "pending" until the admin approves them (Approve button on `/admin`). `npm run demo` runs the full upload -> grant -> view -> revoke -> deny flow against a running backend; `npm test` runs the backend test suite.
