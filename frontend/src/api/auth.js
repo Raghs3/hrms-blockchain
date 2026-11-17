@@ -52,3 +52,15 @@ export async function getDoctors() {
   return response.data;
 }
 
+/**
+ * Persona quick-login via demo mode (when server has demoAuth enabled).
+ * POST /auth/demo-login
+ *
+ * @param {{ name: string, role: 'patient' | 'doctor' }} data
+ * @returns {Promise<{ token: string, role: string, walletAddress: string, userId: string, name: string }>}
+ */
+export async function demoLogin(data) {
+  const response = await api.post('/auth/demo-login', data);
+  return response.data;
+}
+

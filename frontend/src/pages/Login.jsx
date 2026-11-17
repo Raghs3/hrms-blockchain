@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate, Navigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { login, register } from '../api/auth';
+import { login, register, demoLogin } from '../api/auth';
+import api from '../api/axios';
 import LoadingState from '../components/LoadingState';
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -37,6 +38,30 @@ export default function Login() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [doctorPendingData, setDoctorPendingData] = useState(null);
+
+  // Persona quick-login enabled ONLY when GET /health returns demoAuth: true or VITE_DEMO_AUTH=true
+  const [demoAuthEnabled, setDemoAuthEnabled] = useState(
+    () => import.meta.env.VITE_DEMO_AUTH === 'true'
+  );
+
+  useEffect(() => {
+    let isMounted = true;
+    api
+      .get('/health')
+      .then((res) => {
+        if (isMounted) {
+          setDemoAuthEnabled(res.data?.demoAuth === true || import.meta.env.VITE_DEMO_AUTH === 'true');
+        }
+      })
+      .catch(() => {
+        if (isMounted && import.meta.env.VITE_DEMO_AUTH !== 'true') {
+          setDemoAuthEnabled(false);
+        }
+      });
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   // If session verification is in progress
   if (isLoading) {
@@ -84,7 +109,30 @@ export default function Login() {
       const home = targetRole === 'admin' ? '/admin' : targetRole === 'doctor' ? '/doctor' : '/patient';
       navigate(home, { replace: true });
     } catch (err) {
-      setError(err?.message || 'Login failed. Please check your credentials.');
+      if (err?.code === 'DOCTOR_REJECTED') {
+        setError('Your doctor registration was rejected by the administrator.');
+      } else if (err?.code === 'DOCTOR_PENDING') {
+        setError('Your doctor registration is pending approval by the hospital administrator.');
+      } else {
+        setError(err?.message || 'Login failed. Please check your credentials.');
+      }
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  // Handle optional persona quick-login (POST /auth/demo-login)
+  async function handleDemoLogin(name, role) {
+    setError('');
+    setSubmitting(true);
+    try {
+      const res = await demoLogin({ name, role });
+      loginUser(res);
+      const targetRole = res.role || res.user?.role || role;
+      const home = targetRole === 'admin' ? '/admin' : targetRole === 'doctor' ? '/doctor' : '/patient';
+      navigate(home, { replace: true });
+    } catch (err) {
+      setError(err?.message || 'Demo quick-login failed.');
     } finally {
       setSubmitting(false);
     }
@@ -267,7 +315,7 @@ export default function Login() {
                     <circle cx="8" cy="8" r="7" stroke="currentColor" strokeWidth="1.5" />
                     <path d="M8 5v4M8 11v.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
                   </svg>
-                  {error}
+                  <span id="login-error-text">{error}</span>
                 </div>
               )}
 
@@ -322,55 +370,52 @@ export default function Login() {
                     )}
                   </button>
 
-                  {/* Demo Accounts Quick Fill */}
-                  <div
-                    style={{
-                      marginTop: '20px',
-                      padding: '12px 14px',
-                      background: 'var(--color-surface-subtle)',
-                      borderRadius: 'var(--radius-md)',
-                      border: '1px solid var(--color-border-light)',
-                    }}
-                  >
+                  {/* Optional Persona Quick-Login via POST /auth/demo-login (rendered ONLY when demoAuth: true or VITE_DEMO_AUTH=true) */}
+                  {demoAuthEnabled && (
                     <div
                       style={{
-                        fontSize: '0.725rem',
-                        fontWeight: 600,
-                        color: 'var(--color-text-muted)',
-                        textTransform: 'uppercase',
-                        letterSpacing: '0.05em',
-                        marginBottom: '8px',
+                        marginTop: '20px',
+                        padding: '12px 14px',
+                        background: 'var(--color-surface-subtle)',
+                        borderRadius: 'var(--radius-md)',
+                        border: '1px solid var(--color-border-light)',
                       }}
+                      id="demo-persona-login"
                     >
-                      Demo Accounts Quick-Fill
-                    </div>
-                    <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                      <button
-                        type="button"
-                        className="btn btn-secondary btn-sm"
-                        onClick={() => {
-                          setLoginEmail('patient@demo.local');
-                          setLoginPassword('Patient1234!');
-                          setError('');
+                      <div
+                        style={{
+                          fontSize: '0.725rem',
+                          fontWeight: 600,
+                          color: 'var(--color-text-muted)',
+                          textTransform: 'uppercase',
+                          letterSpacing: '0.05em',
+                          marginBottom: '8px',
                         }}
-                        id="quick-fill-patient"
                       >
-                        Patient (Riya Sharma)
-                      </button>
-                      <button
-                        type="button"
-                        className="btn btn-secondary btn-sm"
-                        onClick={() => {
-                          setLoginEmail('doctor@demo.local');
-                          setLoginPassword('Doctor1234!');
-                          setError('');
-                        }}
-                        id="quick-fill-doctor"
-                      >
-                        Doctor (Dr. Kapoor)
-                      </button>
+                        Demo Persona Quick-Login
+                      </div>
+                      <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                        <button
+                          type="button"
+                          className="btn btn-secondary btn-sm"
+                          disabled={submitting}
+                          onClick={() => handleDemoLogin('Riya Sharma', 'patient')}
+                          id="demo-login-patient"
+                        >
+                          Patient (Riya Sharma)
+                        </button>
+                        <button
+                          type="button"
+                          className="btn btn-secondary btn-sm"
+                          disabled={submitting}
+                          onClick={() => handleDemoLogin('Dr. Kapoor', 'doctor')}
+                          id="demo-login-doctor"
+                        >
+                          Doctor (Dr. Kapoor)
+                        </button>
+                      </div>
                     </div>
-                  </div>
+                  )}
                 </form>
               ) : (
                 /* Create Account Form */
