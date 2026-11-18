@@ -59,6 +59,20 @@ export async function grantAccess(recordId, doctorAddress, terms = {}) {
 }
 
 /**
+ * GET /admin/anomalies (admin only)
+ * Rule-based alerts over the access receipts:
+ * { options, scanned, considered, findings: [{ rule, severity, accessor, accessorName, summary,
+ *   count, firstAt, lastAt, recordIds, txHashes }] }
+ */
+export async function getAnomalies() {
+  if (USE_MOCK) {
+    return { options: null, scanned: 0, considered: 0, findings: [] };
+  }
+  const response = await api.get('/admin/anomalies');
+  return response.data;
+}
+
+/**
  * GET /access-receipts
  * On-chain receipts of who actually opened which record (patient: reads of own records;
  * doctor: own reads). { total, limit, offset, receipts: [{ recordId, label, ownerName,
