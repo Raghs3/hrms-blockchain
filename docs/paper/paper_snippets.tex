@@ -1,6 +1,7 @@
 % Drop-in figures and tables for the IEEEtran paper. Figures live in figures/*.png
 % (regenerate: python -I build_figures.py; powershell -File render_figures.ps1).
-% All numbers come from data/measurements.json (contracts/scripts/measure-gas.js).
+% All numbers come from data/*.json (contracts/scripts/measure-gas.js, measure-receipts.js,
+% backend/scripts/measure-latency.js). Word users: see paper_tables.docx instead.
 
 \begin{figure}[htbp]\centerline{\includegraphics[width=0.95\linewidth]{figures/fig1_process_flow.png}}
 \caption{Proposed System Process Flow}\label{fig:flow}\end{figure}
@@ -9,7 +10,7 @@
 \caption{Layered System Architecture}\label{fig:arch}\end{figure}
 
 \begin{figure*}[htbp]\centerline{\includegraphics[width=0.7\linewidth]{figures/fig3_sequence.png}}
-\caption{Sequence Diagram of the Upload--Grant--View--Revoke--Deny Flow}\label{fig:seq}\end{figure*}
+\caption{Sequence Diagram: Upload, Grant, Receipted View, Revoke, Deny}\label{fig:seq}\end{figure*}
 
 \begin{figure}[htbp]\centerline{\includegraphics[width=0.95\linewidth]{figures/fig4_contracts.png}}
 \caption{Smart-Contract Structure and Dependencies}\label{fig:contracts}\end{figure}
@@ -21,83 +22,132 @@
 \caption{Gas Consumption per Contract Operation}\label{fig:gas}\end{figure}
 
 \begin{figure}[htbp]\centerline{\includegraphics[width=0.95\linewidth]{figures/fig7_scaling.png}}
-\caption{Gas vs. Purpose Length for grantAccess}\label{fig:scaling}\end{figure}
+\caption{grantAccess Gas vs. Purpose Length, Two Storage Designs}\label{fig:scaling}\end{figure}
 
 \begin{figure}[htbp]\centerline{\includegraphics[width=0.95\linewidth]{figures/fig8_latency.png}}
 \caption{Read-path Latency of Contract View Calls}\label{fig:latency}\end{figure}
 
-egin{figure}[htbp]\centerline{\includegraphics[width=0.95\linewidth]{figures/fig9_read_latency.png}}
+\begin{figure}[htbp]\centerline{\includegraphics[width=0.95\linewidth]{figures/fig9_read_latency.png}}
 \caption{Read Latency With and Without On-chain Receipts}\label{fig:receiptlat}\end{figure}
 
+\begin{figure}[htbp]\centerline{\includegraphics[width=0.95\linewidth]{figures/fig10_anomaly_pipeline.png}}
+\caption{Anomaly Detection Pipeline over Access Receipts}\label{fig:anomaly}\end{figure}
+
 \begin{table}[htbp]
-\caption{Measured Gas Cost per Operation (Hardhat, solc 0.8.24, optimizer 200 runs)}
+\caption{Measured Gas Cost per Operation (Final Design)}
 \label{tab:gas}\centering
 \begin{tabular}{|l|r|l|}
-\hline \textbf{Operation} & \textbf{Gas} & \textbf{Caller} \ \hline
-Deploy UserRegistry & 512,511 & Admin \ \hline
-Deploy RecordRegistry & 1,124,686 & Admin \ \hline
-registerAsPatient & 47,036 & Patient \ \hline
-registerDoctor & 49,965 & Hospital admin \ \hline
-addRecord (first record) & 237,679 & Patient \ \hline
-grantAccess (short purpose, no expiry) & 84,622 & Patient (owner) \ \hline
-grantAccess (128-byte purpose) & 176,045 & Patient (owner) \ \hline
-revokeAccess & 35,441 & Patient (owner) \ \hline
-recordAccess (receipt) & 30,871 & Doctor / owner \ \hline
+\hline \textbf{Operation} & \textbf{Gas} & \textbf{Caller} \\ \hline
+Deploy UserRegistry & 512,511 & Admin \\ \hline
+Deploy RecordRegistry & 1,053,042 & Admin \\ \hline
+registerAsPatient & 47,036 & Patient \\ \hline
+registerDoctor & 49,965 & Hospital admin \\ \hline
+addRecord (first record) & 237,679 & Patient \\ \hline
+grantAccess (short purpose, no expiry) & 84,187 & Patient (owner) \\ \hline
+grantAccess (128-byte purpose, with expiry) & 86,831 & Patient (owner) \\ \hline
+revokeAccess & 35,276 & Patient (owner) \\ \hline
+recordAccess (read receipt) & 30,871 & Doctor / owner \\ \hline
+\end{tabular}\end{table}
+
+\begin{table}[htbp]
+\caption{grantAccess Gas vs. Purpose Length, Two Storage Designs}
+\label{tab:purposegas}\centering
+\begin{tabular}{|c|r|r|}
+\hline \textbf{Purpose (bytes)} & \textbf{Text stored} & \textbf{Hash stored (final)} \\ \hline
+1 & 84,557 & 84,122 \\ \hline
+32 & 107,162 & 84,494 \\ \hline
+64 & 130,127 & 85,277 \\ \hline
+96 & 153,092 & 86,060 \\ \hline
+128 (limit) & 176,057 & 86,843 \\ \hline
+\end{tabular}\end{table}
+
+\begin{table}[htbp]
+\caption{Gas Across Design Iterations}
+\label{tab:iterations}\centering
+\begin{tabular}{|p{0.38\linewidth}|r|r|r|}
+\hline \textbf{Operation} & \textbf{Original} & \textbf{Text stored} & \textbf{Hash stored} \\ \hline
+grantAccess, short purpose & 59,276 & 84,622 & 84,187 \\ \hline
+grantAccess, 128-byte purpose & n/a & 176,045 & 86,831 \\ \hline
+grantAccess, re-grant & 59,276 & 59,591 & 49,831 \\ \hline
+revokeAccess & 34,298 & 51,700 & 35,276 \\ \hline
+recordAccess (receipt) & n/a & 31,001 & 31,001 \\ \hline
+RecordRegistry deploy & 835,688 & 1,124,686 & 1,053,042 \\ \hline
 \end{tabular}\end{table}
 
 \begin{table}[htbp]
 \caption{Role--Permission Matrix}\label{tab:roles}\centering
 \begin{tabular}{|l|c|c|c|}
-\hline \textbf{Action} & \textbf{Patient} & \textbf{Doctor} & \textbf{Admin} \ \hline
-Self-register & \checkmark & $\times$ & $\times$ \ \hline
-Register doctor & $\times$ & $\times$ & \checkmark \ \hline
-Add record & \checkmark & $\times$ & $\times$ \ \hline
-Grant / revoke access & Owner only & $\times$ & $\times$ \ \hline
-Read record & Owner & If granted & $\times$ \ \hline
+\hline \textbf{Action} & \textbf{Patient} & \textbf{Doctor} & \textbf{Admin} \\ \hline
+Self-register & \checkmark & $\times$ & $\times$ \\ \hline
+Register / approve doctor & $\times$ & $\times$ & \checkmark \\ \hline
+Add record & \checkmark & $\times$ & $\times$ \\ \hline
+Grant / revoke access & Owner only & $\times$ & $\times$ \\ \hline
+Read record & Owner & If grant live & $\times$ \\ \hline
+View anomaly alerts & $\times$ & $\times$ & \checkmark \\ \hline
 \end{tabular}\end{table}
 
 \begin{table}[htbp]
 \caption{Design Comparison (qualitative)}\label{tab:comparative}\centering
 \begin{tabular}{|p{0.38\linewidth}|c|c|c|}
-\hline \textbf{Property} & \textbf{Proposed} & \textbf{Central EHR} & \textbf{Files on-chain} \ \hline
-Patient-controlled consent & \checkmark & $\times$ & \checkmark \ \hline
-Immutable audit trail & \checkmark & Partial & \checkmark \ \hline
-Instant revocation enforced by contract & \checkmark & $\times$ & \checkmark \ \hline
-Large files supported cheaply & \checkmark & \checkmark & $\times$ \ \hline
-No single point of trust for access & \checkmark & $\times$ & \checkmark \ \hline
+\hline \textbf{Property} & \textbf{Proposed} & \textbf{Central EHR} & \textbf{Files on-chain} \\ \hline
+Patient-controlled consent & \checkmark & $\times$ & \checkmark \\ \hline
+Immutable audit trail & \checkmark & Partial & \checkmark \\ \hline
+Instant revocation enforced by contract & \checkmark & $\times$ & \checkmark \\ \hline
+Purpose- and time-bound consent & \checkmark & $\times$ & $\times$ \\ \hline
+Logs who actually read a record & \checkmark & Partial & $\times$ \\ \hline
+Large files supported cheaply & \checkmark & \checkmark & $\times$ \\ \hline
+No single point of trust for access & \checkmark & $\times$ & \checkmark \\ \hline
+\end{tabular}\end{table}
+
+\begin{table}[htbp]
+\caption{Read Latency With and Without On-chain Receipts (ms)}\label{tab:latency}\centering
+\begin{tabular}{|l|r|r|}
+\hline \textbf{Path} & \textbf{Median} & \textbf{p95} \\ \hline
+Plain read (no receipt) & 26.4 & 30.6 \\ \hline
+Receipted read (chain + receipt tx) & 138.4 & 160.3 \\ \hline
+HTTP /view end to end & 165.5 & 189.2 \\ \hline
+\end{tabular}\end{table}
+
+\begin{table}[htbp]
+\caption{Anomaly Rules over Access Receipts (defaults, configurable)}\label{tab:anomaly}\centering
+\begin{tabular}{|l|p{0.42\linewidth}|l|}
+\hline \textbf{Rule} & \textbf{Fires when} & \textbf{Default} \\ \hline
+OFF\_HOURS & A record is opened outside working hours & 07:00--21:00 IST \\ \hline
+BURST & One accessor opens many different records quickly & $\geq$5 records / 10 min \\ \hline
+WIDE\_REACH & One accessor opens records of many different patients & $\geq$3 patients / 60 min \\ \hline
 \end{tabular}\end{table}
 
 % ---- UI screenshots (captured from the running system, fictional data) ----
 egin{figure}[htbp]\centerline{\includegraphics[width=0.95\linewidth]{figures/ui_login.png}}
-\caption{Login and registration screen}\label{fig:ui_login}\end{figure}
+\caption{Login and registration screen}\label{fig:ui_login}nd{figure}
 
 egin{figure}[htbp]\centerline{\includegraphics[width=0.95\linewidth]{figures/ui_patient_overview.png}}
-\caption{Patient overview dashboard}\label{fig:ui_patient_overview}\end{figure}
+\caption{Patient overview dashboard}\label{fig:ui_patient_overview}nd{figure}
 
 egin{figure}[htbp]\centerline{\includegraphics[width=0.95\linewidth]{figures/ui_patient_records.png}}
-\caption{Patient record repository with on-chain SHA-256 verification}\label{fig:ui_patient_records}\end{figure}
+\caption{Patient record repository with on-chain SHA-256 verification}\label{fig:ui_patient_records}nd{figure}
 
 egin{figure}[htbp]\centerline{\includegraphics[width=0.95\linewidth]{figures/ui_patient_grant_modal.png}}
-\caption{Purpose- and time-bound grant dialog}\label{fig:ui_patient_grant_modal}\end{figure}
+\caption{Purpose- and time-bound grant dialog}\label{fig:ui_patient_grant_modal}nd{figure}
 
 egin{figure}[htbp]\centerline{\includegraphics[width=0.95\linewidth]{figures/ui_patient_access.png}}
-\caption{Access and consent control with on-chain read receipts}\label{fig:ui_patient_access}\end{figure}
+\caption{Access and consent control with on-chain read receipts}\label{fig:ui_patient_access}nd{figure}
 
 egin{figure}[htbp]\centerline{\includegraphics[width=0.95\linewidth]{figures/ui_doctor_overview.png}}
-\caption{Doctor overview: records shared with the doctor and own receipts}\label{fig:ui_doctor_overview}\end{figure}
+\caption{Doctor overview: records shared with the doctor and own receipts}\label{fig:ui_doctor_overview}nd{figure}
 
 egin{figure}[htbp]\centerline{\includegraphics[width=0.95\linewidth]{figures/ui_doctor_lookup_granted.png}}
-\caption{Record lookup: access granted}\label{fig:ui_doctor_lookup_granted}\end{figure}
+\caption{Record lookup: access granted}\label{fig:ui_doctor_lookup_granted}nd{figure}
 
 egin{figure}[htbp]\centerline{\includegraphics[width=0.95\linewidth]{figures/ui_doctor_view_receipt.png}}
-\caption{Authorised read with receipt hash and integrity check}\label{fig:ui_doctor_view_receipt}\end{figure}
+\caption{Authorised read with receipt hash and integrity check}\label{fig:ui_doctor_view_receipt}nd{figure}
 
 egin{figure}[htbp]\centerline{\includegraphics[width=0.95\linewidth]{figures/ui_doctor_access_denied.png}}
-\caption{Record lookup: access denied after revocation}\label{fig:ui_doctor_access_denied}\end{figure}
+\caption{Record lookup: access denied after revocation}\label{fig:ui_doctor_access_denied}nd{figure}
 
 egin{figure}[htbp]\centerline{\includegraphics[width=0.95\linewidth]{figures/ui_admin_overview.png}}
-\caption{Hospital administration portal}\label{fig:ui_admin_overview}\end{figure}
+\caption{Hospital administration portal}\label{fig:ui_admin_overview}nd{figure}
 
 egin{figure}[htbp]\centerline{\includegraphics[width=0.95\linewidth]{figures/ui_admin_audit.png}}
-\caption{Admin activity history (on-chain audit trail)}\label{fig:ui_admin_audit}\end{figure}
+\caption{Admin activity history (on-chain audit trail)}\label{fig:ui_admin_audit}nd{figure}
 

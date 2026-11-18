@@ -153,7 +153,7 @@ def fig2():
     s.text(550, 168, "Presentation Layer — React (Vite) Single-Page App", 22, NAVY, "bold")
     for i, (t, ls) in enumerate([("Patient Portal", ["Upload · grant with reason + expiry", "Revoke · who opened my records", "Activity history"]),
                                   ("Doctor Portal", ["Records shared with me", "View (receipt logged)", "My receipts"]),
-                                  ("Admin Portal", ["Approve / disable doctors", "Users · patients", "Full activity history"])]):
+                                  ("Admin Portal", ["Approve / disable doctors", "Users · patients", "Anomaly alerts · activity"])]):
         x = 80 + i * 318
         s.rect(x, 190, 300, 112, BLUE, rx=8); s.text(x + 150, 218, t, 19, weight="bold"); s.lines(x + 150, 246, ls, 16, gap=1.3)
     s.arrow([(550, 320), (550, 400)], NAVY); s.arrow([(550, 400), (550, 320)], NAVY)
@@ -162,10 +162,11 @@ def fig2():
     s.rect(60, 400, 980, 250, LBLUE, BLUE, sw=3)
     s.text(550, 438, "Application Layer — Node.js / Express API (port 4000)", 22, NAVY, "bold")
     mods = [("auth.js", "bcrypt · JWT · role guards"), ("routes.js", "REST API + admin routes"), ("crypto.js", "AES-256-GCM · SHA-256"),
-            ("ipfs.js", "Pinata upload / fetch"), ("chain.js", "ethers.js · custodial wallets"), ("store.js", "accounts · labels")]
-    for i, (a, b) in enumerate(mods):
-        x = 80 + (i % 3) * 318; y = 462 + (i // 3) * 92
-        s.rect(x, y, 300, 78, BLUE, rx=8); s.text(x + 150, y + 33, a, 19, weight="bold"); s.text(x + 150, y + 59, b, 16)
+            ("ipfs.js", "Pinata upload / fetch"), ("chain.js", "ethers.js · custodial wallets"), ("store.js", "accounts · labels"),
+            ("anomaly.js", "rule-based receipt alerts"), ("fileValidator.js", "upload validation")]
+    for i, (a_, b_) in enumerate(mods):
+        x = 80 + (i % 4) * 238; y = 462 + (i // 4) * 92
+        s.rect(x, y, 228, 78, BLUE, rx=8); s.text(x + 114, y + 33, a_, 18, weight="bold"); s.text(x + 114, y + 59, b_, 14)
     # down arrows
     s.arrow([(280, 650), (280, 770)], GREEN); s.text(296, 706, "ethers.js · JSON-RPC", 17, GRAY, anchor="start", style="italic")
     s.text(296, 728, "(signed by user's wallet)", 15, GRAY, anchor="start", style="italic")
@@ -236,7 +237,7 @@ def fig3():
     b0 = y; y += 24
     msg("Patient", "Backend API", "POST /records/:id/grant (purpose, expiry)", y + 12)
     msg("Backend API", "RecordRegistry", "grantAccess(id, doctor, expiry, purpose)", y + 48, GREEN)
-    msg("RecordRegistry", "Backend API", "AccessGranted", y + 84, GREEN, "6 4")
+    msg("RecordRegistry", "Backend API", "AccessGranted (reason text in event)", y + 84, GREEN, "6 4")
     band("B  Patient grants purpose-bound consent", "#EAF7F033", b0, y + 100)
     y += 140
     c0 = y; y += 24
@@ -283,7 +284,7 @@ def fig4():
     s.rect(590, 130, 470, 625, "#fff", GREEN, sw=3)
     s.rect(590, 130, 470, 56, GREEN, rx=12); s.text(825, 166, "RecordRegistry", 21, weight="bold")
     s.text(610, 216, "Structs", 17, GREEN, "bold", "start")
-    s.lines(610, 240, ["Record { owner, cid, fileHash, timestamp }", "Grant { active, expiry (uint64), purpose (≤128 B) }"], 15, "#333", anchor="start", gap=1.45)
+    s.lines(610, 240, ["Record { owner, cid, fileHash, timestamp }", "Grant { active, expiry (uint64), purposeHash (bytes32) }"], 15, "#333", anchor="start", gap=1.45)
     s.line(590, 290, 1060, 290, GREEN, 2)
     s.text(610, 316, "State", 17, GREEN, "bold", "start")
     s.lines(610, 340, ["mapping(id ⇒ Record) records", "mapping(id ⇒ mapping(addr ⇒ Grant)) grants", "mapping(addr ⇒ uint[]) recordsByOwner"], 15, "#333", anchor="start", gap=1.4)
@@ -294,11 +295,11 @@ def fig4():
                        "revokeAccess(id, doctor)  — owner",
                        "recordAccess(id) → AccessReceipt  — owner / live grant",
                        "getRecord(id)  — owner / live grant",
-                       "checkAccess(addr, id) · getGrant(id, doctor)  — view",
+                       "checkAccess(addr, id) · getGrant → hash  — view",
                        "getRecordsByOwner(addr)  — view"], 14, "#333", anchor="start", gap=1.5)
     s.line(590, 650, 1060, 650, GREEN, 2)
     s.text(610, 676, "Events (audit trail)", 17, GREEN, "bold", "start")
-    s.lines(610, 700, ["RecordAdded · AccessGranted(expiry, purpose)", "AccessRevoked · AccessReceipt(accessor, timestamp)"], 15, "#333", anchor="start")
+    s.lines(610, 700, ["RecordAdded · AccessGranted(expiry, purpose text)", "AccessRevoked · AccessReceipt(accessor, timestamp)"], 15, "#333", anchor="start")
     # relation
     s.arrow([(590, 270), (510, 270)], NAVY)
     s.text(550, 256, "isPatient()", 15, "#222"); s.text(550, 292, "isDoctor()", 15, "#222")
@@ -374,31 +375,31 @@ def fig6():
 
 
 def fig7():
-    R = json.load(open(os.path.join(HERE, "data", "receipt-measurements.json")))["gas"]
-    s = Svg(1000, 560)
+    D = os.path.join(HERE, "data")
+    Rh = json.load(open(os.path.join(D, "receipt-measurements.json")))["gas"]
+    Rs = json.load(open(os.path.join(D, "receipt-measurements-string-storage.json")))["gas"]
+    s = Svg(1000, 580)
     x0, y0, w, h = 130, 60, 820, 380
-    ymax = 300000
-    chart_frame(s, x0, y0, w, h, ymax, 50000, "Gas used")
-    xs = [r["purposeBytes"] for r in R["purposeLengthScaling"]]
+    ymax = 200000
+    chart_frame(s, x0, y0, w, h, ymax, 40000, "Gas used")
+    xs = [r["purposeBytes"] for r in Rh["purposeLengthScaling"]]
     px = lambda b: x0 + 40 + (b - 1) / 127 * (w - 80)
     py = lambda v: y0 + h - v / ymax * h
     for b in (1, 32, 64, 96, 128):
         s.line(px(b), y0 + h, px(b), y0 + h + 6, "#333", 2); s.text(px(b), y0 + h + 26, str(b), 15, "#333")
 
-    def series(vals, color, label, ly):
+    def series(vals, color, label, ly, dash=None):
         pts = [(px(b), py(v)) for b, v in zip(xs, vals)]
-        s.arrow(pts, color, head=False, sw=4)
+        s.arrow(pts, color, head=False, sw=4, dash=dash)
         for x, y in pts: s.add(f'<circle cx="{x}" cy="{y}" r="6" fill="{color}"/>')
         s.rect(x0 + 40, ly, 22, 22, color, rx=3); s.text(x0 + 72, ly + 18, label, 17, "#222", anchor="start")
-    n = len(xs)
-    series([R["addRecord"]] * n, BLUE, "addRecord (flat, independent of purpose)", 70)
-    series([r["grantGas"] for r in R["purposeLengthScaling"]], GREEN, "grantAccess (grows with purpose text length)", 100)
-    series([R["recordAccess_repeat"]] * n, ORANGE, "recordAccess receipt (flat, ~31k)", 130)
+    series([r["grantGas"] for r in Rs["purposeLengthScaling"]], RED, "grantAccess, purpose text stored in contract (earlier design)", 70, "10 6")
+    series([r["grantGas"] for r in Rh["purposeLengthScaling"]], GREEN, "grantAccess, only keccak256(purpose) stored (final design)", 100)
+    series([Rh["recordAccess_repeat"]] * len(xs), ORANGE, "recordAccess receipt (flat)", 130)
     s.text(x0 + w / 2, y0 + h + 52, "Purpose length in bytes (limit 128)", 17, "#333")
-    s.text(500, 30, "Purpose storage drives grant cost; receipts stay cheap", 22, NAVY, "bold")
-    s.text(500, 528, "Grant gas is flat in the number of authorised doctors (O(1) mapping write); string storage dominates.", 15, GRAY, style="italic")
-    s.text(500, 560, "Fig. 7 — Gas vs. Purpose Length for grantAccess", 20, "#444", style="italic")
-    s.h = 580
+    s.text(500, 30, "Hashing the purpose removes the length-dependent gas cost", 22, NAVY, "bold")
+    s.text(500, 528, "At 128 bytes: 176,057 gas with stored text vs 86,843 with the hash (-51%); the text stays on-chain in the AccessGranted event.", 15, GRAY, style="italic")
+    s.text(500, 560, "Fig. 7 — grantAccess Gas vs. Purpose Length, Two Storage Designs", 20, "#444", style="italic")
     s.write("fig7_scaling")
 
 
@@ -409,8 +410,8 @@ def fig8():
             ("getRecord\n(denied)", L["getRecord_denied"], RED), ("getRecordsByOwner", L["getRecordsByOwner"], BLUE)]
     s = Svg(1000, 560)
     x0, y0, w, h = 130, 60, 820, 380
-    ymax = 1.0
-    chart_frame(s, x0, y0, w, h, ymax, 0.2, "Median latency (ms)", lambda v: f"{v:.1f}")
+    ymax = 0.6
+    chart_frame(s, x0, y0, w, h, ymax, 0.1, "Median latency (ms)", lambda v: f"{v:.1f}")
     bw = w / len(data)
     for i, (n, v, c) in enumerate(data):
         bh = v / ymax * h; bx = x0 + i * bw + bw * 0.2
@@ -446,6 +447,36 @@ def fig9():
     s.write("fig9_read_latency")
 
 
+def fig10():
+    s = Svg(1100, 760)
+    pill(s, 150, 20, 800, 64, NAVY, "Rule-Based Anomaly Detection over On-chain Receipts", size=24)
+    # source
+    s.rect(60, 130, 980, 110, LGREEN, GREEN, sw=3)
+    s.text(550, 166, "On-chain log: AccessReceipt(recordId, owner, accessor, timestamp)", 21, "#0E6655", "bold")
+    s.text(550, 202, "Written before any release; tamper-proof. Reads by the record owner are ignored.", 17, "#333")
+    s.arrow([(550, 240), (550, 290)], GREEN)
+    s.text(566, 272, "chain.js · event query", 15, GRAY, anchor="start", style="italic")
+    # rules
+    s.rect(60, 290, 980, 250, LBLUE, BLUE, sw=3)
+    s.text(550, 326, "anomaly.js — three transparent rules per accessor (thresholds env-configurable)", 21, NAVY, "bold")
+    rules = [("OFF_HOURS", ["Record opened outside", "working hours", "(default 07:00–21:00,", "IST)"]),
+             ("BURST", ["≥ 5 different records", "opened within", "10 minutes", ""]),
+             ("WIDE_REACH", ["Records of ≥ 3 different", "patients opened within", "60 minutes", ""])]
+    for i, (n, ls) in enumerate(rules):
+        x = 80 + i * 318
+        s.rect(x, 350, 300, 170, BLUE, rx=8); s.text(x + 150, 384, n, 20, weight="bold")
+        s.lines(x + 150, 414, [l for l in ls if l], 17, gap=1.35)
+    s.arrow([(550, 540), (550, 590)], BLUE)
+    s.text(566, 572, "GET /admin/anomalies", 15, GRAY, anchor="start", style="italic")
+    # output
+    s.rect(60, 590, 980, 110, LORANGE, ORANGE, sw=3)
+    s.text(550, 626, "Admin portal — alerts with severity and evidence", 21, "#A04000", "bold")
+    s.text(550, 662, "Overview (compact) and Activity History (full): who opened what, when, and why it was flagged.", 17, "#333")
+    s.text(550, 735, "Fig. 10 — Anomaly Detection Pipeline over Access Receipts", 20, "#444", style="italic")
+    s.h = 760
+    s.write("fig10_anomaly_pipeline")
+
+
 if __name__ == "__main__":
-    for f in (fig1, fig2, fig3, fig4, fig5, fig6, fig7, fig8, fig9):
+    for f in (fig1, fig2, fig3, fig4, fig5, fig6, fig7, fig8, fig9, fig10):
         f()

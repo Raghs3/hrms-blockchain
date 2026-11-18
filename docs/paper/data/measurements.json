@@ -1,61 +1,61 @@
 {
   "deploy": {
     "UserRegistry": 512511,
-    "RecordRegistry": 1124686
+    "RecordRegistry": 1053042
   },
   "tx": {
     "registerAsPatient": 47036,
     "registerDoctor": 49965,
     "addRecord": 237679,
-    "grantAccess_first": 84622,
-    "revokeAccess": 35441,
-    "grantAccess_regrant": 84622,
+    "grantAccess_first": 84187,
+    "revokeAccess": 35276,
+    "grantAccess_regrant": 84187,
     "recordAccess_doctor": 30871
   },
   "scaling": [
     {
       "authorizedDoctors": 2,
-      "grantGas": 84634
+      "grantGas": 84199
     },
     {
       "authorizedDoctors": 3,
-      "grantGas": 84634
+      "grantGas": 84199
     },
     {
       "authorizedDoctors": 4,
-      "grantGas": 84634
+      "grantGas": 84199
     },
     {
       "authorizedDoctors": 5,
-      "grantGas": 84634
+      "grantGas": 84199
     },
     {
       "authorizedDoctors": 6,
-      "grantGas": 84634
+      "grantGas": 84199
     },
     {
       "authorizedDoctors": 7,
-      "grantGas": 84634
+      "grantGas": 84199
     },
     {
       "authorizedDoctors": 8,
-      "grantGas": 84634
+      "grantGas": 84199
     },
     {
       "authorizedDoctors": 9,
-      "grantGas": 84622
+      "grantGas": 84187
     },
     {
       "authorizedDoctors": 10,
-      "grantGas": 84634
+      "grantGas": 84199
     }
   ],
   "readLatencyMs": {
-    "checkAccess": 0.438,
-    "getRecord_authorized": 0.488,
-    "getRecordsByOwner": 0.65,
-    "getGrant": 0.422,
-    "getRecord_denied": 0.605
+    "checkAccess": 0.279,
+    "getRecord_authorized": 0.313,
+    "getRecordsByOwner": 0.435,
+    "getGrant": 0.24,
+    "getRecord_denied": 0.453
   },
   "network": "hardhat (in-process), solc 0.8.24, optimizer 200 runs",
   "recordGrowth": [
