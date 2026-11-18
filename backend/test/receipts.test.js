@@ -286,6 +286,28 @@ describe("Receipted access and consent terms", () => {
       assert.equal((await call("GET", `/records/${id}/view`, { token: doctor.token })).status, 200);
     });
 
+    test("the readable reason is recovered from the event log, and a re-grant shows the newest reason", async () => {
+      const id = await uploadRecord(patient);
+      assert.equal((await grant(patient, id, doctor, { purpose: "Second opinion" })).status, 200);
+      const reason = async () =>
+        (await call("GET", "/records/mine", { token: patient.token })).body.find((r) => r.recordId === id)
+          .authorizedDoctors[0].purpose;
+      assert.equal(await reason(), "Second opinion");
+
+      assert.equal((await grant(patient, id, doctor, { purpose: "Ongoing treatment" })).status, 200);
+      assert.equal(await reason(), "Ongoing treatment");
+
+      // the doctor sees the same, newest reason
+      const shared = (await call("GET", "/records/shared-with-me", { token: doctor.token })).body.find(
+        (r) => r.recordId === id
+      );
+      assert.equal(shared.purpose, "Ongoing treatment");
+
+      // non-ASCII reasons survive the hash round trip too
+      assert.equal((await grant(patient, id, doctor, { purpose: "दूसरी राय – café" })).status, 200);
+      assert.equal(await reason(), "दूसरी राय – café");
+    });
+
     test("bad terms are rejected with 4xx", async () => {
       const id = await uploadRecord(patient);
       const past = await grant(patient, id, doctor, { expiresAt: new Date((await chainNow()) * 1000 - 60_000).toISOString() });

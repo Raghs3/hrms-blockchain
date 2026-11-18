@@ -157,7 +157,27 @@ describe("RecordRegistry", function () {
       const g = await recordRegistry.getGrant(recordId, doctor.address);
       expect(g.active).to.equal(true);
       expect(g.expiry).to.equal(expiry);
-      expect(g.purpose).to.equal(purpose);
+      // the contract keeps only a hash; the readable text is in the AccessGranted event
+      expect(g.purposeHash).to.equal(ethers.keccak256(ethers.toUtf8Bytes(purpose)));
+    });
+
+    it("the readable purpose is recoverable from the AccessGranted event and matches the stored hash", async function () {
+      await recordRegistry.connect(patient).grantAccess(recordId, doctor.address, NO_EXPIRY, purpose);
+      const [ev] = await recordRegistry.queryFilter(recordRegistry.filters.AccessGranted(recordId, null, doctor.address));
+      expect(ev.args.purpose).to.equal(purpose);
+      const g = await recordRegistry.getGrant(recordId, doctor.address);
+      expect(ethers.keccak256(ethers.toUtf8Bytes(ev.args.purpose))).to.equal(g.purposeHash);
+    });
+
+    it("grant gas does not depend on how long the purpose is (hash, not string, is stored)", async function () {
+      const gasFor = async (text) =>
+        (await (await recordRegistry.connect(patient).grantAccess(recordId, doctor.address, NO_EXPIRY, text)).wait()).gasUsed;
+      await recordRegistry.connect(patient).grantAccess(recordId, otherDoctor.address, NO_EXPIRY, "warm"); // pay the first-grant slot cost elsewhere
+      const short = await gasFor("x");
+      await recordRegistry.connect(patient).revokeAccess(recordId, doctor.address);
+      const long = await gasFor("x".repeat(128));
+      // only the (cheap) event data grows with the text: far less than the ~90k a stored 128-byte string costs
+      expect(long - short).to.be.lessThan(3000n);
     });
 
     it("access ends on its own once the expiry passes, with no revoke transaction", async function () {
@@ -192,15 +212,17 @@ describe("RecordRegistry", function () {
       const second = BigInt((await time.latest()) + 3600);
       await recordRegistry.connect(patient).grantAccess(recordId, doctor.address, second, "follow-up");
       expect(await recordRegistry.checkAccess(doctor.address, recordId)).to.equal(true);
-      expect((await recordRegistry.getGrant(recordId, doctor.address)).purpose).to.equal("follow-up");
+      expect((await recordRegistry.getGrant(recordId, doctor.address)).purposeHash).to.equal(
+        ethers.keccak256(ethers.toUtf8Bytes("follow-up"))
+      );
     });
 
-    it("revoking clears the grant including its purpose", async function () {
+    it("revoking clears the grant including its purpose hash", async function () {
       await recordRegistry.connect(patient).grantAccess(recordId, doctor.address, NO_EXPIRY, purpose);
       await recordRegistry.connect(patient).revokeAccess(recordId, doctor.address);
       const g = await recordRegistry.getGrant(recordId, doctor.address);
       expect(g.active).to.equal(false);
-      expect(g.purpose).to.equal("");
+      expect(g.purposeHash).to.equal(ethers.ZeroHash);
     });
 
     it("rejects an expiry that is already in the past", async function () {

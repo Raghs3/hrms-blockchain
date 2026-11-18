@@ -109,7 +109,20 @@ function parseGrantTerms(req, res, next) {
 }
 
 const expiryIso = (expiry) => (expiry > 0n ? new Date(Number(expiry) * 1000).toISOString() : null);
-const grantView = (g) => ({ purpose: g.purpose || null, expiresAt: expiryIso(g.expiry) });
+// The contract stores only keccak256(purpose); the readable text is in the AccessGranted event.
+// Find the newest event for this record and doctor whose text hashes to the on-chain value, so a
+// re-grant with a new reason shows the new reason, and a mismatching text is never shown.
+function purposeFor(grantLogs, recordId, doctor, purposeHash) {
+  for (let i = grantLogs.length - 1; i >= 0; i--) {
+    const a = grantLogs[i].args;
+    if (BigInt(a.recordId) !== BigInt(recordId)) continue;
+    if (a.doctor.toLowerCase() !== doctor.toLowerCase()) continue;
+    if (ethers.keccak256(ethers.toUtf8Bytes(a.purpose)) === purposeHash) return a.purpose;
+  }
+  return null;
+}
+
+const grantView = (g, purpose) => ({ purpose: purpose ?? null, expiresAt: expiryIso(g.expiry) });
 
 // The contract can only answer "does X have access?", so rebuild the list of
 // doctors from the AccessGranted event log and confirm each against the current state.
@@ -120,7 +133,8 @@ async function authorizedDoctors(recordId) {
   for (const doctor of candidates) {
     const grant = await recordRegistry.getGrant(recordId, doctor);
     if (grant.active) {
-      current.push({ walletAddress: doctor, name: store.getName(doctor), ...grantView(grant) });
+      const purpose = purposeFor(grants, recordId, doctor, grant.purposeHash);
+      current.push({ walletAddress: doctor, name: store.getName(doctor), ...grantView(grant, purpose) });
     }
   }
   return current;
@@ -276,7 +290,7 @@ router.get("/records/shared-with-me", requireAuth("doctor"), wrap(async (req, re
           recordId: id.toString(),
           owner: record.owner,
           ownerName: store.getName(record.owner),
-          ...grantView(grant),
+          ...grantView(grant, purposeFor(grants, id, doctorAddress, grant.purposeHash)),
           label: store.getLabel(id.toString()),
           uploadedAt: new Date(Number(record.timestamp) * 1000).toISOString(),
           cid: record.cid,
