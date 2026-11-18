@@ -61,7 +61,7 @@ Stack decision: Ethereum (Solidity + Hardhat/Ganache local network). Target: end
 
 ## API contract (frontend <-> backend)
 
-The authoritative contract is `docs/API_CONTRACT.md` (auth: `docs/AUTH_CONTRACT.md`). Summary of endpoints:
+The endpoints are summarised below (the standalone API/auth contract docs were removed; the backend code and `backend/README.md` are the reference):
 
 - `POST /auth/register`, `POST /auth/login` (email + password), `GET /auth/me`
 - `GET /doctors` (approved doctors, for the grant dropdown)

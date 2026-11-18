@@ -103,5 +103,5 @@ GET  /auth/me         Bearer <token>       → { user }
 GET  /doctors         Bearer <token>       → { doctors: [...] }
 ```
 
-See `../docs/AUTH_CONTRACT.md` and `../docs/API_CONTRACT.md` for full contract.
+See `backend/src/routes` and `docs/architecture.md` for the API summary.
 
