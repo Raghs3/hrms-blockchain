@@ -306,6 +306,28 @@ Who actually opened what: one row per on-chain `AccessReceipt`.
 | Unauthenticated | 401 | `{ error: "INVALID_TOKEN" }` |
 | RPC failure | 503 | `{ error: "RPC_ERROR", message: string }` |
 
+### `GET /admin/anomalies`
+**Auth:** admin only
+
+Rule-based alerts over every access receipt (`backend/src/anomaly.js`). Not machine learning: three explainable rules with explicit thresholds. A patient opening their own record is never flagged.
+
+| Rule | Severity | Meaning (defaults) |
+|---|---|---|
+| `OFF_HOURS` | medium | opened records outside 07:00-21:00 local time (UTC+5:30 by default) |
+| `BURST` | high | opened 5+ different records within 10 minutes |
+| `WIDE_REACH` | high | opened records of 3+ different patients within 60 minutes |
+
+Thresholds can be changed with env vars `ANOMALY_UTC_OFFSET_MINUTES`, `ANOMALY_WORK_START_HOUR`, `ANOMALY_WORK_END_HOUR`, `ANOMALY_BURST_RECORDS`, `ANOMALY_BURST_WINDOW_MINUTES`, `ANOMALY_WIDE_REACH_PATIENTS`, `ANOMALY_WIDE_REACH_WINDOW_MINUTES`.
+
+| Scenario | Status | Response |
+|---|---|---|
+| Success | 200 | `{ options, scanned, considered, findings: [{ rule, severity, accessor, accessorName, summary, count, firstAt, lastAt, recordIds, txHashes }] }` (high severity first, then newest) |
+| Not an admin | 403 | `{ error: "WRONG_ROLE" }` |
+| Unauthenticated | 401 | `{ error: "INVALID_TOKEN" }` |
+| RPC failure | 503 | `{ error: "RPC_ERROR", message: string }` |
+
+`node scripts/demo-anomalies.js` (in `backend/`) generates a sweeping doctor on a local stack for demos.
+
 Receipts are deliberately not mixed into `/audit-trail` yet (the frontend audit component would need to render a new event type first).
 
 ---

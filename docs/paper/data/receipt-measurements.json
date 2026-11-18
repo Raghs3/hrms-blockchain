@@ -1,37 +1,37 @@
 {
   "network": "hardhat (in-process, automine), solc 0.8.24, optimizer 200 runs",
   "gas": {
-    "deployRecordRegistry": 1124686,
+    "deployRecordRegistry": 1053042,
     "addRecord": 220579,
-    "grantAccess_shortPurpose_noExpiry": 84622,
-    "grantAccess_shortPurpose_withExpiry": 84701,
-    "grantAccess_128BytePurpose_withExpiry": 176045,
-    "grantAccess_regrant_extend": 59591,
-    "revokeAccess": 51700,
+    "grantAccess_shortPurpose_noExpiry": 84187,
+    "grantAccess_shortPurpose_withExpiry": 84266,
+    "grantAccess_128BytePurpose_withExpiry": 86831,
+    "grantAccess_regrant_extend": 49831,
+    "revokeAccess": 35276,
     "purposeLengthScaling": [
       {
         "purposeBytes": 1,
-        "grantGas": 84557
+        "grantGas": 84122
       },
       {
         "purposeBytes": 16,
-        "grantGas": 84737
+        "grantGas": 84302
       },
       {
         "purposeBytes": 32,
-        "grantGas": 107162
+        "grantGas": 84494
       },
       {
         "purposeBytes": 64,
-        "grantGas": 130127
+        "grantGas": 85277
       },
       {
         "purposeBytes": 96,
-        "grantGas": 153092
+        "grantGas": 86060
       },
       {
         "purposeBytes": 128,
-        "grantGas": 176057
+        "grantGas": 86843
       }
     ],
     "recordAccess_first": 31001,
@@ -42,43 +42,43 @@
   "latency": {
     "plainRead_getRecord": {
       "runs": 200,
-      "medianMs": 0.763,
-      "p95Ms": 1.096
+      "medianMs": 0.399,
+      "p95Ms": 0.662
     },
     "receiptedRead_recordAccess": {
       "runs": 200,
-      "medianMs": 1.108,
-      "p95Ms": 2.072
+      "medianMs": 0.586,
+      "p95Ms": 0.924
     },
     "getGrant_view": {
       "runs": 200,
-      "medianMs": 0.709,
-      "p95Ms": 1.155
+      "medianMs": 0.254,
+      "p95Ms": 0.406
     },
     "checkAccess_view": {
       "runs": 200,
-      "medianMs": 0.505,
-      "p95Ms": 1.138
+      "medianMs": 0.232,
+      "p95Ms": 0.4
     },
     "note": "In-process automine: the receipted read adds one transaction round-trip with no block-time wait. On a real network the added latency is dominated by block time (confirmation), not by these numbers.",
     "receiptQuery": [
       {
         "receiptsInLog": 10,
         "runs": 20,
-        "medianMs": 37.132,
-        "p95Ms": 48.333
+        "medianMs": 28.599,
+        "p95Ms": 34.352
       },
       {
         "receiptsInLog": 100,
         "runs": 20,
-        "medianMs": 35.921,
-        "p95Ms": 39.87
+        "medianMs": 26.721,
+        "p95Ms": 29.41
       },
       {
         "receiptsInLog": 500,
         "runs": 20,
-        "medianMs": 80.559,
-        "p95Ms": 100.276
+        "medianMs": 58.597,
+        "p95Ms": 74.952
       }
     ]
   }

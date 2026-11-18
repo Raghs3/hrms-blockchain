@@ -11,6 +11,8 @@ import {
 // VITE_USE_MOCK=false by default; mock mode only runs when explicitly set to 'true'
 const USE_MOCK = import.meta.env.VITE_USE_MOCK === 'true';
 
+export const ACCESS_RECEIPT_EVENT = 'access-receipt-logged';
+
 /**
  * GET /records/mine
  * Returns the authenticated patient's record list.
@@ -53,6 +55,20 @@ export async function grantAccess(recordId, doctorAddress, terms = {}) {
     purpose: terms.purpose,
     expiresAt: terms.expiresAt ?? null,
   });
+  return response.data;
+}
+
+/**
+ * GET /admin/anomalies (admin only)
+ * Rule-based alerts over the access receipts:
+ * { options, scanned, considered, findings: [{ rule, severity, accessor, accessorName, summary,
+ *   count, firstAt, lastAt, recordIds, txHashes }] }
+ */
+export async function getAnomalies() {
+  if (USE_MOCK) {
+    return { options: null, scanned: 0, considered: 0, findings: [] };
+  }
+  const response = await api.get('/admin/anomalies');
   return response.data;
 }
 
@@ -107,6 +123,10 @@ export async function viewRecord(recordId) {
     return mockViewRecord(recordId);
   }
   const response = await api.get(`/records/${recordId}/view`);
+  if (response.data?.accessReceipt && typeof window !== 'undefined') {
+    // Lets any open "who opened your records" panel reload without a manual refresh.
+    window.dispatchEvent(new Event(ACCESS_RECEIPT_EVENT));
+  }
   return response.data;
 }
 

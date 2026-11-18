@@ -18,6 +18,7 @@ const { encrypt, decrypt, sha256Hex } = require("./crypto");
 const { validateUploadedFile } = require("./fileValidator");
 const ipfs = require("./ipfs");
 const store = require("./store");
+const { detectAnomalies } = require("./anomaly");
 
 const router = express.Router();
 // defParamCharset: multer decodes multipart filenames as latin1 by default, which turns
@@ -108,7 +109,20 @@ function parseGrantTerms(req, res, next) {
 }
 
 const expiryIso = (expiry) => (expiry > 0n ? new Date(Number(expiry) * 1000).toISOString() : null);
-const grantView = (g) => ({ purpose: g.purpose || null, expiresAt: expiryIso(g.expiry) });
+// The contract stores only keccak256(purpose); the readable text is in the AccessGranted event.
+// Find the newest event for this record and doctor whose text hashes to the on-chain value, so a
+// re-grant with a new reason shows the new reason, and a mismatching text is never shown.
+function purposeFor(grantLogs, recordId, doctor, purposeHash) {
+  for (let i = grantLogs.length - 1; i >= 0; i--) {
+    const a = grantLogs[i].args;
+    if (BigInt(a.recordId) !== BigInt(recordId)) continue;
+    if (a.doctor.toLowerCase() !== doctor.toLowerCase()) continue;
+    if (ethers.keccak256(ethers.toUtf8Bytes(a.purpose)) === purposeHash) return a.purpose;
+  }
+  return null;
+}
+
+const grantView = (g, purpose) => ({ purpose: purpose ?? null, expiresAt: expiryIso(g.expiry) });
 
 // The contract can only answer "does X have access?", so rebuild the list of
 // doctors from the AccessGranted event log and confirm each against the current state.
@@ -119,7 +133,8 @@ async function authorizedDoctors(recordId) {
   for (const doctor of candidates) {
     const grant = await recordRegistry.getGrant(recordId, doctor);
     if (grant.active) {
-      current.push({ walletAddress: doctor, name: store.getName(doctor), ...grantView(grant) });
+      const purpose = purposeFor(grants, recordId, doctor, grant.purposeHash);
+      current.push({ walletAddress: doctor, name: store.getName(doctor), ...grantView(grant, purpose) });
     }
   }
   return current;
@@ -275,7 +290,7 @@ router.get("/records/shared-with-me", requireAuth("doctor"), wrap(async (req, re
           recordId: id.toString(),
           owner: record.owner,
           ownerName: store.getName(record.owner),
-          ...grantView(grant),
+          ...grantView(grant, purposeFor(grants, id, doctorAddress, grant.purposeHash)),
           label: store.getLabel(id.toString()),
           uploadedAt: new Date(Number(record.timestamp) * 1000).toISOString(),
           cid: record.cid,
@@ -381,6 +396,24 @@ router.get("/records/:id/view", requireAuth(), parseRecordId, wrap(async (req, r
   });
 }));
 
+// One on-chain AccessReceipt log -> the JSON shape shared by /access-receipts and /admin/anomalies.
+function receiptView(log) {
+  const recordId = log.args.recordId.toString();
+  const { owner, accessor } = log.args;
+  return {
+    recordId,
+    label: store.getLabel(recordId),
+    owner,
+    ownerName: store.getName(owner),
+    accessor,
+    accessorName: store.getName(accessor),
+    selfAccess: owner.toLowerCase() === accessor.toLowerCase(),
+    timestamp: new Date(Number(log.args.timestamp) * 1000).toISOString(),
+    txHash: log.transactionHash,
+    blockNumber: Number(log.blockNumber),
+  };
+}
+
 // Who actually opened what. Patient: reads of their own records (by anyone; selfAccess marks
 // their own views). Doctor: their own reads. Admin: everything. Every row is an on-chain
 // AccessReceipt, so it carries a transaction hash. Optional ?recordId= filter.
@@ -407,23 +440,34 @@ router.get("/access-receipts", requireAuth(), wrap(async (req, res) => {
   const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 50, 1), 100);
   const offset = Math.max(parseInt(req.query.offset, 10) || 0, 0);
 
-  const receipts = logs.slice(offset, offset + limit).map((log) => {
-    const recordId = log.args.recordId.toString();
-    const { owner, accessor } = log.args;
-    return {
-      recordId,
-      label: store.getLabel(recordId),
-      owner,
-      ownerName: store.getName(owner),
-      accessor,
-      accessorName: store.getName(accessor),
-      selfAccess: owner.toLowerCase() === accessor.toLowerCase(),
-      timestamp: new Date(Number(log.args.timestamp) * 1000).toISOString(),
-      txHash: log.transactionHash,
-      blockNumber: Number(log.blockNumber),
-    };
-  });
+  const receipts = logs.slice(offset, offset + limit).map(receiptView);
   res.json({ total: logs.length, limit, offset, receipts });
+}));
+
+// Rule-based alerts over every receipt (see anomaly.js). Thresholds default sensibly and can be
+// set with ANOMALY_* env vars (e.g. ANOMALY_UTC_OFFSET_MINUTES for the hospital's time zone).
+router.get("/admin/anomalies", requireAuth("admin"), wrap(async (req, res) => {
+  let logs;
+  try {
+    logs = await recordRegistry.queryFilter(recordRegistry.filters.AccessReceipt());
+  } catch (err) {
+    if (err?.code === "NETWORK_ERROR" || err?.code === "SERVER_ERROR") {
+      return res.status(503).json({ error: "RPC_ERROR", message: "Blockchain RPC node unavailable" });
+    }
+    throw err;
+  }
+  const env = process.env;
+  res.json(
+    detectAnomalies(logs.map(receiptView), {
+      utcOffsetMinutes: env.ANOMALY_UTC_OFFSET_MINUTES,
+      workStartHour: env.ANOMALY_WORK_START_HOUR,
+      workEndHour: env.ANOMALY_WORK_END_HOUR,
+      burstRecords: env.ANOMALY_BURST_RECORDS,
+      burstWindowMinutes: env.ANOMALY_BURST_WINDOW_MINUTES,
+      wideReachPatients: env.ANOMALY_WIDE_REACH_PATIENTS,
+      wideReachWindowMinutes: env.ANOMALY_WIDE_REACH_WINDOW_MINUTES,
+    })
+  );
 }));
 
 async function getBlockTimestamp(blockNumber, cache) {
