@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import Layout from '../../components/Layout';
 import LoadingState from '../../components/LoadingState';
 import EmptyState from '../../components/EmptyState';
+import AnomalyAlerts from '../../components/AnomalyAlerts';
 import { useAuth } from '../../context/AuthContext';
 import useDocumentTitle from '../../hooks/useDocumentTitle';
 import api from '../../api/axios';
@@ -312,6 +313,8 @@ export default function AdminDashboard() {
       </div>
 
       {/* Pending Medical Practitioner Approvals */}
+      <AnomalyAlerts compact />
+
       <div className="card" style={{ marginTop: '24px' }}>
         <div className="card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
           <div>

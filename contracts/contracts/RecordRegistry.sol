@@ -22,11 +22,13 @@ contract RecordRegistry {
 
     // recordId => Record
     mapping(uint256 => Record) private records;
-    /// @dev A consent grant: who may read, until when, and why.
+    /// @dev A consent grant: who may read, until when, and why. The reason is kept as a hash
+    ///      (one fixed storage slot, so grant gas does not grow with the text); the readable
+    ///      text lives in the AccessGranted event, which is cheap and permanent.
     struct Grant {
         bool active;
         uint64 expiry; // unix seconds; 0 = no expiry (until revoked)
-        string purpose; // e.g. "second opinion"
+        bytes32 purposeHash; // keccak256 of the purpose text, e.g. "second opinion"
     }
 
     uint256 public constant MAX_PURPOSE_LENGTH = 128;
@@ -118,7 +120,7 @@ contract RecordRegistry {
         if (len == 0) revert PurposeRequired();
         if (len > MAX_PURPOSE_LENGTH) revert PurposeTooLong(len);
 
-        grants[recordId][doctor] = Grant({active: true, expiry: expiry, purpose: purpose});
+        grants[recordId][doctor] = Grant({active: true, expiry: expiry, purposeHash: keccak256(bytes(purpose))});
         emit AccessGranted(recordId, msg.sender, doctor, expiry, purpose);
     }
 
@@ -143,15 +145,17 @@ contract RecordRegistry {
     }
 
     /// @notice Returns the grant a doctor holds on a record (for the patient's UI).
-    ///         `active` is true only if the grant exists AND has not expired.
+    ///         `active` is true only if the grant exists AND has not expired. `purposeHash` is
+    ///         keccak256 of the purpose text; the text itself is in the AccessGranted event
+    ///         (find the newest one for this record and doctor whose text hashes to this value).
     function getGrant(uint256 recordId, address doctor)
         external
         view
         recordExists(recordId)
-        returns (bool active, uint64 expiry, string memory purpose)
+        returns (bool active, uint64 expiry, bytes32 purposeHash)
     {
         Grant storage g = grants[recordId][doctor];
-        return (_grantLive(g), g.expiry, g.purpose);
+        return (_grantLive(g), g.expiry, g.purposeHash);
     }
 
     /// @notice Logs that the caller is opening `recordId`. Reverts unless the caller

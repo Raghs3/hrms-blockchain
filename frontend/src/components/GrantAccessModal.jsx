@@ -4,7 +4,16 @@ import { grantAccess } from '../api/records';
 import { getDoctors } from '../api/auth';
 import { useToast } from '../context/ToastContext';
 import { useAuditTrail } from '../context/AuditTrailContext';
-import { PURPOSE_PRESETS, EXPIRY_OPTIONS, expiryIsoFromHours, describeExpiry } from './consentFormat';
+import {
+  PURPOSE_PRESETS,
+  EXPIRY_OPTIONS,
+  expiryIsoFromHours,
+  describeExpiry,
+  parseCustomExpiry,
+  toLocalInputValue,
+  MIN_CUSTOM_EXPIRY_MS,
+  MAX_CUSTOM_EXPIRY_MS,
+} from './consentFormat';
 
 const CUSTOM_PURPOSE = '__custom__';
 const MAX_PURPOSE_BYTES = 128;
@@ -39,12 +48,14 @@ export default function GrantAccessModal({ record, onSuccess }) {
   const [purposeChoice, setPurposeChoice] = useState(PURPOSE_PRESETS[0]);
   const [customPurpose, setCustomPurpose] = useState('');
   const [expiryIndex, setExpiryIndex] = useState(1); // default: 7 days
+  const [customExpiry, setCustomExpiry] = useState('');
 
   async function handleOpen() {
     setIsOpen(true);
     setPurposeChoice(PURPOSE_PRESETS[0]);
     setCustomPurpose('');
     setExpiryIndex(1);
+    setCustomExpiry('');
     setSelectedAddress('');
     setCustomAddress('');
     setIsCustomMode(false);
@@ -119,7 +130,18 @@ export default function GrantAccessModal({ record, onSuccess }) {
       setError(`The reason is too long (limit ${MAX_PURPOSE_BYTES} bytes).`);
       return;
     }
-    const expiresAt = expiryIsoFromHours(EXPIRY_OPTIONS[expiryIndex].hours);
+    const expiryOption = EXPIRY_OPTIONS[expiryIndex];
+    let expiresAt;
+    if (expiryOption.custom) {
+      const parsed = parseCustomExpiry(customExpiry);
+      if (parsed.error) {
+        setError(parsed.error);
+        return;
+      }
+      expiresAt = parsed.iso;
+    } else {
+      expiresAt = expiryIsoFromHours(expiryOption.hours);
+    }
 
     setLoading(true);
     try {
@@ -147,7 +169,10 @@ export default function GrantAccessModal({ record, onSuccess }) {
       showToast({
         type: 'success',
         title: 'Access granted',
-        message: `${docDisplayName} can now access: ${record.label}`,
+        // The modal's own success panel is unmounted when the list reloads, so the terms go here.
+        message: `${docDisplayName} can now access: ${record.label}. Reason: ${result.purpose || purpose}. ${describeExpiry(
+          result.expiresAt ?? expiresAt
+        )}.`,
       });
 
       if (onSuccess) {
@@ -392,6 +417,22 @@ export default function GrantAccessModal({ record, onSuccess }) {
                         </option>
                       ))}
                     </select>
+                    {EXPIRY_OPTIONS[expiryIndex].custom && (
+                      <input
+                        id="grant-expiry-custom"
+                        type="datetime-local"
+                        className="form-control"
+                        style={{ marginTop: '8px' }}
+                        value={customExpiry}
+                        min={toLocalInputValue(new Date(Date.now() + MIN_CUSTOM_EXPIRY_MS))}
+                        max={toLocalInputValue(new Date(Date.now() + MAX_CUSTOM_EXPIRY_MS))}
+                        onChange={(e) => {
+                          setCustomExpiry(e.target.value);
+                          setError('');
+                        }}
+                        disabled={loading}
+                      />
+                    )}
                     <div className="form-hint" style={{ marginTop: '6px', fontSize: '0.8125rem', color: 'var(--color-text-muted)' }}>
                       The blockchain ends access by itself at that time. You can still revoke earlier.
                     </div>

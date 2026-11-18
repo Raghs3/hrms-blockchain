@@ -1,6 +1,7 @@
 import Layout from '../../components/Layout';
 import AuditTrail from '../../components/AuditTrail';
 import AccessReceipts from '../../components/AccessReceipts';
+import AnomalyAlerts from '../../components/AnomalyAlerts';
 import useDocumentTitle from '../../hooks/useDocumentTitle';
 
 /**
@@ -20,6 +21,7 @@ export default function AdminAudit() {
           </p>
         </div>
       </div>
+      <AnomalyAlerts />
       <AccessReceipts
         viewer="admin"
         title="Who opened records"
