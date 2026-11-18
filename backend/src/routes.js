@@ -18,6 +18,7 @@ const { encrypt, decrypt, sha256Hex } = require("./crypto");
 const { validateUploadedFile } = require("./fileValidator");
 const ipfs = require("./ipfs");
 const store = require("./store");
+const { detectAnomalies } = require("./anomaly");
 
 const router = express.Router();
 // defParamCharset: multer decodes multipart filenames as latin1 by default, which turns
@@ -381,6 +382,24 @@ router.get("/records/:id/view", requireAuth(), parseRecordId, wrap(async (req, r
   });
 }));
 
+// One on-chain AccessReceipt log -> the JSON shape shared by /access-receipts and /admin/anomalies.
+function receiptView(log) {
+  const recordId = log.args.recordId.toString();
+  const { owner, accessor } = log.args;
+  return {
+    recordId,
+    label: store.getLabel(recordId),
+    owner,
+    ownerName: store.getName(owner),
+    accessor,
+    accessorName: store.getName(accessor),
+    selfAccess: owner.toLowerCase() === accessor.toLowerCase(),
+    timestamp: new Date(Number(log.args.timestamp) * 1000).toISOString(),
+    txHash: log.transactionHash,
+    blockNumber: Number(log.blockNumber),
+  };
+}
+
 // Who actually opened what. Patient: reads of their own records (by anyone; selfAccess marks
 // their own views). Doctor: their own reads. Admin: everything. Every row is an on-chain
 // AccessReceipt, so it carries a transaction hash. Optional ?recordId= filter.
@@ -407,23 +426,34 @@ router.get("/access-receipts", requireAuth(), wrap(async (req, res) => {
   const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 50, 1), 100);
   const offset = Math.max(parseInt(req.query.offset, 10) || 0, 0);
 
-  const receipts = logs.slice(offset, offset + limit).map((log) => {
-    const recordId = log.args.recordId.toString();
-    const { owner, accessor } = log.args;
-    return {
-      recordId,
-      label: store.getLabel(recordId),
-      owner,
-      ownerName: store.getName(owner),
-      accessor,
-      accessorName: store.getName(accessor),
-      selfAccess: owner.toLowerCase() === accessor.toLowerCase(),
-      timestamp: new Date(Number(log.args.timestamp) * 1000).toISOString(),
-      txHash: log.transactionHash,
-      blockNumber: Number(log.blockNumber),
-    };
-  });
+  const receipts = logs.slice(offset, offset + limit).map(receiptView);
   res.json({ total: logs.length, limit, offset, receipts });
+}));
+
+// Rule-based alerts over every receipt (see anomaly.js). Thresholds default sensibly and can be
+// set with ANOMALY_* env vars (e.g. ANOMALY_UTC_OFFSET_MINUTES for the hospital's time zone).
+router.get("/admin/anomalies", requireAuth("admin"), wrap(async (req, res) => {
+  let logs;
+  try {
+    logs = await recordRegistry.queryFilter(recordRegistry.filters.AccessReceipt());
+  } catch (err) {
+    if (err?.code === "NETWORK_ERROR" || err?.code === "SERVER_ERROR") {
+      return res.status(503).json({ error: "RPC_ERROR", message: "Blockchain RPC node unavailable" });
+    }
+    throw err;
+  }
+  const env = process.env;
+  res.json(
+    detectAnomalies(logs.map(receiptView), {
+      utcOffsetMinutes: env.ANOMALY_UTC_OFFSET_MINUTES,
+      workStartHour: env.ANOMALY_WORK_START_HOUR,
+      workEndHour: env.ANOMALY_WORK_END_HOUR,
+      burstRecords: env.ANOMALY_BURST_RECORDS,
+      burstWindowMinutes: env.ANOMALY_BURST_WINDOW_MINUTES,
+      wideReachPatients: env.ANOMALY_WIDE_REACH_PATIENTS,
+      wideReachWindowMinutes: env.ANOMALY_WIDE_REACH_WINDOW_MINUTES,
+    })
+  );
 }));
 
 async function getBlockTimestamp(blockNumber, cache) {
