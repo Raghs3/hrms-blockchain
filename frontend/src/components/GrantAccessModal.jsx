@@ -169,7 +169,10 @@ export default function GrantAccessModal({ record, onSuccess }) {
       showToast({
         type: 'success',
         title: 'Access granted',
-        message: `${docDisplayName} can now access: ${record.label}`,
+        // The modal's own success panel is unmounted when the list reloads, so the terms go here.
+        message: `${docDisplayName} can now access: ${record.label}. Reason: ${result.purpose || purpose}. ${describeExpiry(
+          result.expiresAt ?? expiresAt
+        )}.`,
       });
 
       if (onSuccess) {
