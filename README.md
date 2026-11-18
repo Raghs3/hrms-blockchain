@@ -104,9 +104,6 @@ The app talks to the backend at `http://localhost:4000` by default. To change th
 
 - `docs/PRD.md` — requirements, scope, success criteria for the midsem demo
 - `docs/architecture.md` — full technical architecture, build order, and API contract
-- `docs/API_CONTRACT.md`, `docs/AUTH_CONTRACT.md` — current backend API and auth contract
-- `docs/RUNBOOK.md` — start-up, smoke tests, troubleshooting
-- `docs/LIMITATIONS.md` — architectural trade-offs (useful for the paper)
 - `backend/README.md` — backend setup, env table, clean-reset procedure
 
 ## Branching
