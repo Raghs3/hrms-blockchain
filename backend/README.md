@@ -103,5 +103,5 @@ GET  /auth/me         Bearer <token>       → { user }
 GET  /doctors         Bearer <token>       → { doctors: [...] }
 ```
 
-See `backend/src/routes` and `docs/architecture.md` for the API summary.
+See `backend/src/routes.js` and `docs/architecture.md` for the API summary.
 
