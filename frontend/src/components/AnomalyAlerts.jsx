@@ -64,7 +64,7 @@ export default function AnomalyAlerts({ compact = false }) {
           <h2>
             Unusual access activity
             {findings.length > 0 && (
-              <span className="badge badge-pending" style={{ marginLeft: '10px', fontSize: '0.75rem' }}>
+              <span className="badge badge-revoked" style={{ marginLeft: '10px', fontSize: '0.75rem' }}>
                 {findings.length} alert{findings.length > 1 ? 's' : ''}
               </span>
             )}
@@ -107,7 +107,7 @@ export default function AnomalyAlerts({ compact = false }) {
                   <div style={{ display: 'flex', justifyContent: 'space-between', gap: '12px', flexWrap: 'wrap' }}>
                     <div style={{ fontSize: '0.9375rem' }}>
                       <span
-                        className={`badge ${high ? 'badge-denied' : 'badge-pending'}`}
+                        className={`badge ${high ? 'badge-denied' : 'badge-revoked'}`}
                         style={{ fontSize: '0.7rem', marginRight: '8px' }}
                       >
                         {high ? 'High' : 'Medium'} · {RULE_LABELS[f.rule] || f.rule}
